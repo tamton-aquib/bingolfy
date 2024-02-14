@@ -9,7 +9,7 @@ app.use(cors());
 const users = {}
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "https://bingolfy-a6fx.onrender.com:5173/" } })
+const io = new Server(server, { cors: { origin: "https://bingolfy-a6fx.onrender.com/" } })
 
 io.on("connection", (socket) => {
     console.log(`User ${socket.id} connected!`);
