@@ -15,10 +15,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-firebase-hooks": "^5.1.1",
-    "socket.io-client": "^4.7.2",
-    "stream-chat": "^8.13.1",
-    "stream-chat-react": "^10.14.1",
-    "universal-cookie": "^6.1.1"
+    "socket.io-client": "^4.7.2"
   },
   "devDependencies": {
     "@types/react": "^18.2.15",
