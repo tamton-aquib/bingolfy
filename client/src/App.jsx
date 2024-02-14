@@ -10,7 +10,7 @@ import { auth } from "./firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useEffect, useState } from 'react';
 
-const socket = io.connect("http://localhost:5174");
+const socket = io.connect("https://bingolfy.onrender.com/");
 
 function App() {
     const [user] = useAuthState(auth);
