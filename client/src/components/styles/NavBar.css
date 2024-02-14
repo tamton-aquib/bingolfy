@@ -1,0 +1,19 @@
+
+.nav-bar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    transform: scale(0.6);
+}
+
+.sign-out {
+    background-color: var(--fg);
+    color: var(--bg);
+    transform: scale(1.5);
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 1rem;
+    border-radius: 10px;
+}
+

@@ -1,0 +1,81 @@
+:root {
+    --fg: #b2fcfa;
+    --bg: #1a2026;
+    --tile: #29343c;
+}
+
+.game-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.ingame-container {
+    display: flex;
+    flex-direction: row;
+    gap: 3rem;
+}
+
+.game-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 65px);
+    grid-template-rows: repeat(5, 65px);
+    grid-gap: 10px;
+}
+
+.game-grid-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 65px;
+    height: 65px;
+
+    font-weight: bold;
+
+    background-color: var(--tile);
+    color: var(--fg);
+    border-radius: 5px;
+}
+
+.game-grid-element {
+    cursor: pointer;
+    transition: 0.3s all ease;
+}
+
+.game-grid-element:hover {
+    background-color: var(--fg);
+    color: var(--tile);
+}
+
+.setup-button-container {
+    display: flex;
+    justify-content: space-evenly;
+    margin-top: 1rem;
+}
+
+.setup-button {
+    width: 30%;
+    padding: 5px;
+    margin: 5px;
+    background-color: var(--fg);
+    font-weight: 600;
+    color: var(--bg);
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.user-list {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.user-list-header {
+    margin-top: 2rem;
+    font-size: 2rem;
+    text-decoration: underline;
+}
+
+.active-user {
+    color: var(--fg);
+}
