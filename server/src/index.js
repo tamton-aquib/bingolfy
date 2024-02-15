@@ -9,9 +9,11 @@ app.use(cors());
 const users = {}
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: {
-    origin: "https://bingolfy.onrender.com"
-} })
+const io = new Server(server, {
+    cors: {
+        origin: "https://bingolfy.onrender.com"
+    }
+})
 
 io.on("connection", (socket) => {
     console.log(`User ${socket.id} connected!`);
@@ -24,8 +26,6 @@ io.on("connection", (socket) => {
         } else {
             users[room] = [name];
         }
-
-        // if (!users[data.room]) users[data.room] = [];
 
         socket.join(room);
 

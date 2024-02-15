@@ -1,10 +1,39 @@
 
 .room-container {
+    display: flex;
+    flex-direction: row;
     text-align: center;
+    width: 80vw;
+    justify-content: space-between;
+}
+
+.divider {
+    width: 0.2rem;
+    height: 20vw;
+    border-radius: 1rem;
+    background-color: white;
+}
+
+.create-room-input {
+    outline: none;
+    padding: 8px;
+    border-radius: 8px;
+    background-color: white;
+    color: black;
+}
+
+.create-room-button {
+    border: none;
+    border-radius: 5px;
+    background-color: var(--fg);
+    color: var(--bg);
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px;
+    margin-left: 5px;
 }
 
 .butt {
-    background-color: #282828;
     padding: 10px;
     margin-inline: 30px;
 
