@@ -108,7 +108,7 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
                     ?
                     <>
                         <h1>{wonUser} Called BINGO!</h1>
-                        <button onClick={restartGame} type="reset">Restart</button>
+                        <button className="bingo-button" onClick={restartGame} type="reset">Restart</button>
                     </>
                     :
                     <>
@@ -118,7 +118,7 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
                         {
                             score >= 5
                                 ?
-                                <button onClick={GameOver} type="button">
+                                <button className="bingo-button" onClick={GameOver} type="button">
                                     BINGO
                                 </button>
                                 :

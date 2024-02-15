@@ -79,3 +79,14 @@
 .active-user {
     color: var(--fg);
 }
+
+.bingo-button {
+    background: var(--fg);
+    color: var(--bg);
+    border: none;
+    outline: none;
+    border-radius: 5px;
+    padding: 3px;
+    margin: 10px 0px;
+    cursor: pointer;
+}

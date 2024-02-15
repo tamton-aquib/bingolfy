@@ -10,7 +10,7 @@ import { auth } from "./firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useEffect, useState } from 'react';
 
-const socket = io.connect("https://bingolfy.onrender.com:5174/");
+const socket = io.connect("https://bingolfy-backend.onrender.com/");
 
 function App() {
     const [user] = useAuthState(auth);
@@ -39,7 +39,7 @@ function App() {
             setPlayingUsers(users);
         });
 
-    }, [socket]);
+    }, []);
 
     return (
         <div className="App">
