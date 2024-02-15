@@ -10,7 +10,7 @@ const users = {}
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: {
-    origin: "https://bingolfy-backend.onrender.com"
+    origin: "https://bingolfy.onrender.com"
 } })
 
 io.on("connection", (socket) => {
