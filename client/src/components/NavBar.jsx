@@ -24,7 +24,7 @@ const NavBar = () => {
                     Sign Out
                 </button>
             ) : (
-                    <button className="sign-in">
+                    <button type="submit" className="sign-in">
                         <img
                             onClick={googleSignIn}
                             src={GoogleSignin}

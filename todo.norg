@@ -10,6 +10,7 @@ version: 1.1.1
    - ( ) Use production firebase config.
    - ( ) Let users be ready and assign a first player
    - ( ) play in turns
+   - ( ) Better login page
 
    - ( ) Option to use custom numbers in the grid
    - ( ) 6x6 grid (maybe arbitrary size?)
