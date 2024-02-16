@@ -6,7 +6,7 @@ import http from "http";
 const app = express();
 app.use(cors());
 
-const users = {}
+const rooms = {}
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -19,19 +19,23 @@ io.on("connection", (socket) => {
     console.log(`User ${socket.id} connected!`);
 
     socket.on("join_room", ({room, name}) => {
-        if (users.hasOwnProperty(room)) {
-            if (!users[room].includes(name)) {
-                users[room].push(name);
+        if (rooms.hasOwnProperty(room)) {
+            const foundUser = rooms[room].find(user => user.name === name)
+            if (!foundUser) {
+                rooms[room].push({name: name, ready: false});
+            } else {
+                const foundItem = rooms[room].find(user => user.name === name);
+                if (foundItem)
+                    foundItem.ready = false;
             }
         } else {
-            users[room] = [name];
+            rooms[room] = [{name: name, ready: false}];
         }
 
         socket.join(room);
 
-        console.log("Room clients: ", users[room])
-        // socket.to(room).emit("user_joined", users[room]);
-        socket.broadcast.emit("user_joined", users[room]);
+        console.log("Users in the room: ", rooms[room])
+        io.to(room).emit("user_joined", rooms[room]);
     })
 
     socket.on("tile_clicked", (data) => {
@@ -39,7 +43,16 @@ io.on("connection", (socket) => {
     })
 
     socket.on("user_won", (data) => {
+        // FIX: Dont broadcast.
         socket.broadcast.emit("game_over", data);
+    })
+
+    socket.on("user_ready", (data) => {
+        const foundItem = rooms[data.room].find(user => user.name === data.user);
+        if (foundItem)
+            foundItem.ready = true;
+
+        io.to(data.room).emit("user_joined", rooms[data.room]);
     })
 
     socket.on("error", (error) => {

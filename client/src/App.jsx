@@ -31,14 +31,7 @@ function App() {
     }, [user]);
 
     useEffect(() => {
-
-        socket.on("user_joined", (users) => {
-            console.log("Called user_joined: ", users);
-            // const concated = [...p, ...users]
-            // setPlayingUsers(p => concated.filter((name, index) => concated.indexOf(name) == index));
-            setPlayingUsers(users);
-        });
-
+        socket.on("user_joined", setPlayingUsers);
     }, []);
 
     return (

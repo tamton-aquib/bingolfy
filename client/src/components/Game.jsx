@@ -35,6 +35,7 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
     // const [whoPlaysNow, setWhoPlaysNow] = useState();
 
     const gridNumbers = grid.map(row => row.map(col => (
+        // biome-ignore lint/a11y/useKeyWithClickEvents: <explanation>
         <div
             key={col}
             id={col}
@@ -73,9 +74,9 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
         setScore(score);
     }, [clickedTiles])
 
-    useEffect(() => {
-        console.log("New Playing Users: ", playingUsers);
-    }, [playingUsers])
+    // useEffect(() => {
+    // console.log("New Playing Users: ", playingUsers);
+    // }, [playingUsers])
 
     useEffect(() => {
         socket.on("flush", (data) => {
@@ -88,6 +89,10 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
             setWonUser(data.user);
         })
     }, [socket]);
+
+    const userReadyHandler = () => {
+        socket.emit("user_ready", {user: userDetails.name, room: room})
+    }
 
     const GameOver = () => {
         setWonUser(userDetails.name);
@@ -138,10 +143,15 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
                                     playingUsers.map(player => {
                                         return (
                                             <li
-                                                className={`user-list-item ${userDetails.name === player && 'active-user'}`}
-                                                key={player}
+                                                className={`user-list-item ${player.ready && "ready-user"}`}
+                                                key={player.name}
                                             >
-                                                {player}
+                                                { player.name }
+                                                { (player.name === userDetails.name && !player.ready) &&
+                                                    <button onClick={userReadyHandler} type="button">
+                                                        Ready
+                                                    </button>
+                                                }
                                             </li>
                                         )
                                     })

@@ -76,7 +76,7 @@
     text-decoration: underline;
 }
 
-.active-user {
+.ready-user {
     color: var(--fg);
 }
 
