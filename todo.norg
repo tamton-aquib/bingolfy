@@ -8,13 +8,16 @@ version: 1.1.1
 *  Todo's
    - ( ) disconnect on unmount.
    - ( ) Use production firebase config.
-   - ( ) Let users be ready and assign a first player
-   - ( ) play in turns
+   - (x) Let users be ready and assign a first player
+   - (x) play in turns
    - ( ) Better login page
+   - (!) Cleanup
 
+*  Unimportant Todo's
+   - ( ) Logging
    - ( ) Option to use custom numbers in the grid
    - ( ) 6x6 grid (maybe arbitrary size?)
-   - ( ) Smooth UI transitions
+   - (-) Smooth UI transitions
    - ( ) Sessional leaderboard?
    - ( ) Kicking users.
 

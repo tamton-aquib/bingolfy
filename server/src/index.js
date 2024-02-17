@@ -43,8 +43,7 @@ io.on("connection", (socket) => {
     })
 
     socket.on("user_won", (data) => {
-        // FIX: Dont broadcast.
-        socket.broadcast.emit("game_over", data);
+        io.to(data.room).emit("game_over", data);
     })
 
     socket.on("user_ready", (data) => {
@@ -53,6 +52,16 @@ io.on("connection", (socket) => {
             foundItem.ready = true;
 
         io.to(data.room).emit("user_joined", rooms[data.room]);
+
+        if (!rooms[data.room].filter(player => !player.ready).length) {
+            let randomPlayer = rooms[data.room][Math.floor(Math.random() * rooms[data.room].length)];
+            console.log("Everyones ready, sending random player: ", randomPlayer.name)
+            io.to(data.room).emit("next_player", randomPlayer.name)
+        }
+    })
+
+    socket.on("set_next_player", (data) => {
+        io.to(data.room).emit("next_player", data.user)
     })
 
     socket.on("error", (error) => {

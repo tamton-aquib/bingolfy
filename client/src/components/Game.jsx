@@ -32,7 +32,7 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
     const [clickedTiles, setClickedTiles] = useState([]);
     const [score, setScore] = useState(0);
     const [wonUser, setWonUser] = useState();
-    // const [whoPlaysNow, setWhoPlaysNow] = useState();
+    const [currentPlayer, setCurrentPlayer] = useState();
 
     const gridNumbers = grid.map(row => row.map(col => (
         // biome-ignore lint/a11y/useKeyWithClickEvents: <explanation>
@@ -47,12 +47,9 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
     )));
 
     const tileClickHandler = (n) => {
-        // const currentPlayer = playingUsers.indexOf(userDetails.name)
-        // setWhoPlaysNow(() => (currentPlayer + 1) % playingUsers.length);
+        if (!currentPlayer) return;
+        if (currentPlayer !== userDetails.name) return;
 
-        // if (currentPlayer !== whoPlaysNow) {
-            // return;
-        // }
         document.getElementById(n).style.backgroundColor = "#9ce5c0";
         document.getElementById(n).style.color = "#000000";
         setClickedTiles(p => {
@@ -61,14 +58,20 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
                 {
                     tiles: [...p, n],
                     room: room,
-                    // nextPlayer: whoPlaysNow
                 }
             );
             return [...p, n];
         });
+
+        const idx = playingUsers.findIndex(player => player.name === currentPlayer);
+        const nextPlayer = playingUsers[(idx+1) % playingUsers.length]
+        if (nextPlayer) {
+            socket.emit("set_next_player", {user: nextPlayer.name, room: room})
+        }
     }
 
     /// Check GameOver
+    // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
     useEffect(() => {
         const score = winningCombos.filter(row => row.filter(item => clickedTiles.includes(item)).length === 5).length;
         setScore(score);
@@ -85,6 +88,10 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
             setClickedTiles(data);
         })
 
+        socket.on("next_player", (data) => {
+            setCurrentPlayer(data)
+        })
+
         socket.on("game_over", (data) => {
             setWonUser(data.user);
         })
@@ -96,7 +103,7 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
 
     const GameOver = () => {
         setWonUser(userDetails.name);
-        socket.emit("user_won", {user: userDetails.name});
+        socket.emit("user_won", {user: userDetails.name, room: room});
     }
 
     const restartGame = () => {
