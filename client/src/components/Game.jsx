@@ -47,8 +47,10 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
     )));
 
     const tileClickHandler = (n) => {
+        // TODO: chain these with `or`
         if (!currentPlayer) return;
         if (currentPlayer !== userDetails.name) return;
+        if (clickedTiles.includes(n)) return;
 
         document.getElementById(n).style.backgroundColor = "#9ce5c0";
         document.getElementById(n).style.color = "#000000";
@@ -76,10 +78,6 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
         const score = winningCombos.filter(row => row.filter(item => clickedTiles.includes(item)).length === 5).length;
         setScore(score);
     }, [clickedTiles])
-
-    // useEffect(() => {
-    // console.log("New Playing Users: ", playingUsers);
-    // }, [playingUsers])
 
     useEffect(() => {
         socket.on("flush", (data) => {
@@ -145,7 +143,15 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
                             </div>
 
                             <ul className="user-list">
-                                {playingUsers.length ? <div className="user-list-header">Players</div> : ''}
+                                { playingUsers.length ?
+                                    <>
+                                        {currentPlayer ? `${currentPlayer}'s Turn!` : ""}
+                                        <div className="user-list-header">
+                                            Players
+                                        </div>
+                                    </>
+                                    : ''
+                                }
                                 {
                                     playingUsers.map(player => {
                                         return (

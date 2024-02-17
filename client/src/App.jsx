@@ -1,4 +1,3 @@
-import './App.css';
 import Login from './components/Login';
 import NavBar from './components/NavBar';
 import GameSetup from './components/GameSetup';
@@ -10,7 +9,11 @@ import { auth } from "./firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { useEffect, useState } from 'react';
 
-const socket = io.connect("https://bingolfy-backend.onrender.com/");
+const socket = io.connect(
+    import.meta.env.VITE_DEBUG ?
+    "http://localhost:5174" :
+    "https://bingolfy-backend.onrender.com/"
+);
 
 function App() {
     const [user] = useAuthState(auth);

@@ -11,7 +11,9 @@ const rooms = {}
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "https://bingolfy.onrender.com"
+        origin: process.env.DEBUG ?
+            "http://localhost:5173" :
+            "https://bingolfy.onrender.com"
     }
 })
 
