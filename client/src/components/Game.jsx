@@ -47,10 +47,7 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
     )));
 
     const tileClickHandler = (n) => {
-        // TODO: chain these with `or`
-        if (!currentPlayer) return;
-        if (currentPlayer !== userDetails.name) return;
-        if (clickedTiles.includes(n)) return;
+        if (!currentPlayer || currentPlayer !== userDetails.name || clickedTiles.includes(n)) return;
 
         document.getElementById(n).style.backgroundColor = "#9ce5c0";
         document.getElementById(n).style.color = "#000000";
@@ -104,6 +101,7 @@ const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
         socket.emit("user_won", {user: userDetails.name, room: room});
     }
 
+    // FIX: reidrect to select room page?
     const restartGame = () => {
         setWonUser(null);
         setScore(0);

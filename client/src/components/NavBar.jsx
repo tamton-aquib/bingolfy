@@ -25,6 +25,7 @@ const NavBar = () => {
                 </button>
             ) : (
                     <button type="submit" className="sign-in">
+                        {/* biome-ignore lint/a11y/useKeyWithClickEvents: <explanation> */}
                         <img
                             onClick={googleSignIn}
                             src={GoogleSignin}

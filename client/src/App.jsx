@@ -18,20 +18,21 @@ const socket = io.connect(
 function App() {
     const [user] = useAuthState(auth);
     const [userDetails, setUserDetails] = useState({});
+    const [anonUser, setAnonUser] = useState();
     const [grid, setGrid] = useState();
     const [room, setRoom] = useState();
     const [playingUsers, setPlayingUsers] = useState([]);
 
     useEffect(() => {
-        if (user) {
+        if (user || anonUser) {
             setUserDetails({
-                name: user.displayName,
-                email: user.email,
-                photo: user.photoURL,
-                uid: user.uid
+                name: user?.displayName || anonUser,
+                email: user?.email,
+                photo: user?.photoURL,
+                uid: user?.uid || (Math.random()*100)
             })
         }
-    }, [user]);
+    }, [user, anonUser]);
 
     useEffect(() => {
         socket.on("user_joined", setPlayingUsers);
@@ -40,31 +41,33 @@ function App() {
     return (
         <div className="App">
             <NavBar />
+
             <div>
                 {
-                    !user
+                    (user || anonUser)
                         ?
-                        <Login />
-                        :
                         (!room ?
                             <Room name={userDetails.name} room={room} setRoom={setRoom} socket={socket} /> :
-                        (
-                            !grid ?
-                                <GameSetup
-                                    setGrid={setGrid}
-                                /> :
-                                <Game
-                                    playingUsers={playingUsers}
-                                    room={room}
-                                    userDetails={userDetails}
-                                    socket={socket}
-                                    grid={grid}
-                                    setGrid={setGrid}
-                                />
+                            (
+                                !grid ?
+                                    <GameSetup
+                                        setGrid={setGrid}
+                                    /> :
+                                    <Game
+                                        playingUsers={playingUsers}
+                                        room={room}
+                                        userDetails={userDetails}
+                                        socket={socket}
+                                        grid={grid}
+                                        setGrid={setGrid}
+                                    />
+                            )
                         )
-                        )
+                        :
+                        <Login setAnonUser={setAnonUser} />
                 }
             </div>
+
         </div>
     )
 }

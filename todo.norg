@@ -12,6 +12,8 @@ version: 1.1.1
    - (x) play in turns
    - ( ) Better login page
    - (!) Cleanup
+   - ( ) User actions based on uuid instead of name
+   - (x) Add an instructions page for those who dont know the game.
 
 *  Unimportant Todo's
    - ( ) Logging
@@ -20,4 +22,5 @@ version: 1.1.1
    - (-) Smooth UI transitions
    - ( ) Sessional leaderboard?
    - ( ) Kicking users.
+   - ( ) Reactions.
 
