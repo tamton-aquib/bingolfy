@@ -6,10 +6,6 @@
     transform: scale(0.6);
 }
 
-.sign-in {
-    cursor: pointer;
-}
-
 .sign-out {
     background-color: var(--fg);
     color: var(--bg);
