@@ -5,7 +5,7 @@ import { GoogleAuthProvider, signInWithRedirect } from "firebase/auth";
 import "./styles/Login.css";
 
 
-const Login = ({setAnonUser}) => {
+const Login = ({ setAnonUser }) => {
     const inpRef = useRef();
 
     const onClickHandler = () => {
