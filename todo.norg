@@ -7,7 +7,9 @@ version: 1.1.1
 
 *  Todo's
    - ( ) disconnect on unmount.
+   - (!) Convert from javascript to typescript.
    - ( ) Use production firebase config.
+   - ( ) Dont let users join after the game starts.
    - (x) Let users be ready and assign a first player
    - (x) play in turns
    - ( ) Better login page
