@@ -12,5 +12,9 @@
 		/* Type Checking */
 		"strict": true,
 		"skipLibCheck": true,
+
+		/* "paths": {
+			"@types/*": ["./types/*"]
+		} */
 	}
 }

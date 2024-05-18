@@ -2,21 +2,7 @@ import express from "express";
 import cors from "cors";
 import { Server } from "socket.io";
 import http from "http";
-
-
-type User = {
-	name: string,
-	ready: boolean
-}
-
-type Room = {
-	name: string,
-	ready: boolean
-}
-
-type Rooms = {
-    [roomName: string]: Room[];
-}
+import { User, Rooms } from "../../types/types";
 
 const app = express();
 app.use(cors());
