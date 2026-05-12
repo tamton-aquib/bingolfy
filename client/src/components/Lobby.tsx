@@ -114,21 +114,6 @@ const Lobby = ({ onJoinRoom, getApiUrl }: LobbyProps) => {
                     );
                 })}
             </div>
-            <div className="create-room-section">
-                <p style={{ fontSize: '.75rem', color: 'var(--muted)', textTransform: 'uppercase' }}>CREATE ROOM</p>
-                <form className="create-room-form" onSubmit={handleCreateRoom} aria-label="Create or join a room">
-                    <input
-                        type="text"
-                        ref={roomInputRef}
-                        placeholder="Room name"
-                        required
-                        minLength={2}
-                        maxLength={20}
-                        aria-label="Room name"
-                    />
-                    <button className="btn btn-primary" type="submit">JOIN</button>
-                </form>
-            </div>
         </div>
     );
 };

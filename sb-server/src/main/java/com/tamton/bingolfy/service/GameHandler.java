@@ -53,7 +53,17 @@ public class GameHandler extends TextWebSocketHandler {
     private void handleJoinRoom(WebSocketSession session, com.fasterxml.jackson.databind.JsonNode json) throws Exception {
         String room = json.get("room").asText();
         String name = json.get("name").asText();
+
+        String prevRoom = sessionRooms.get(session.getId());
+        if (prevRoom != null && !prevRoom.equals(room)) {
+            handleLeaveRoom(session);
+        }
+
         var users = gameService.joinRoom(room, name);
+        if (users == null) {
+            sendToSession(session, "error", "Room is full");
+            return;
+        }
 
         roomSessions.computeIfAbsent(room, k -> ConcurrentHashMap.newKeySet()).add(session);
         sessionRooms.put(session.getId(), room);
@@ -143,6 +153,13 @@ public class GameHandler extends TextWebSocketHandler {
                 s.sendMessage(msg);
             }
         }
+    }
+
+    private void sendToSession(WebSocketSession session, String type, String message) throws Exception {
+        TextMessage msg = new TextMessage(objectMapper.writeValueAsString(
+                java.util.Map.of("type", type, "payload", message)
+        ));
+        if (session.isOpen()) session.sendMessage(msg);
     }
 
     @Override

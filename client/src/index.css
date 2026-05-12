@@ -281,10 +281,11 @@ input:focus{border-color:var(--accent);box-shadow:inset 3px 3px 0 0 var(--accent
 .tiles-counter{font-size:.75rem;color:var(--muted);text-align:center;margin:var(--space-sm) 0 0}
 
 .bingo-progress{
-  display:flex;gap:var(--space-xs);font-size:clamp(2rem,4vw,3rem);
+  display:flex;flex-wrap:wrap;justify-content:center;gap:var(--space-xs);
+  font-size:clamp(2rem,4vw,3rem);
   font-family:var(--font-display);letter-spacing:.08em;font-weight:700;
 }
-.bingo-progress span{opacity:.2;transition:opacity .3s}
+.bingo-progress span{opacity:.4;transition:opacity .3s}
 .bingo-progress span.lit{opacity:1;color:var(--accent)}
 .bingo-progress span.completed{opacity:1;color:var(--success)}
 .game-sidebar h3{padding-bottom:var(--space-sm);border-bottom:var(--border-w) solid var(--border);margin-bottom:var(--space-sm)}

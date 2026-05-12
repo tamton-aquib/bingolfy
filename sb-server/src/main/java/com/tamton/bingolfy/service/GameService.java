@@ -10,6 +10,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class GameService {
 
+    private static final int MAX_PLAYERS = 8;
+
     private final Map<String, List<User>> rooms = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> setupComplete = new ConcurrentHashMap<>();
     private final Random random = new Random();
@@ -21,6 +23,7 @@ public class GameService {
                 .findFirst()
                 .orElse(null);
         if (existing == null) {
+            if (users.size() >= MAX_PLAYERS) return null;
             users.add(new User(name));
         }
         return List.copyOf(users);

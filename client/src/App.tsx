@@ -71,10 +71,12 @@ function App() {
     }, [socket]);
 
     const wasReadyRef = useRef(false);
+    const wasEverReadyRef = useRef(false);
     useEffect(() => {
         if (socket.ready && !wasReadyRef.current && room && userDetails.name) {
             socket.send("join_room", { room, name: userDetails.name });
         }
+        if (socket.ready) wasEverReadyRef.current = true;
         wasReadyRef.current = socket.ready;
     }, [socket.ready, room, userDetails.name]);
 
@@ -130,7 +132,7 @@ function App() {
     return (
         <>
             <NavBar onSignOut={handleSignOut} signedIn={isSignedIn} />
-            {!socket.ready && <div className="reconnect-banner">Reconnecting...</div>}
+            {!socket.ready && wasEverReadyRef.current && <div className="reconnect-banner">Reconnecting...</div>}
             <div className="screen-container">
             {screen === 'login' && <Login setAnonUser={setAnonUser} />}
 
