@@ -45,7 +45,7 @@ function App() {
             });
             if (screen === 'login') setScreen('lobby');
         }
-    }, [user, anonUser, screen]);
+    }, [user, anonUser]);
 
     useEffect(() => {
         const unsubJoined = socket.subscribe("user_joined", (data: unknown) => {
@@ -108,9 +108,8 @@ function App() {
     const isSignedIn = !!(user || anonUser);
 
     const handleSignOut = useCallback(() => {
-        if (user) {
-            auth.signOut();
-        }
+        if (room) socket.send("leave_room");
+        if (user) auth.signOut();
         setAnonUser(null);
         setUserDetails({ name: '', email: '', photo: '', uid: '' });
         setRoom('');
@@ -118,7 +117,7 @@ function App() {
         setPlayingUsers([]);
         setCurrentPlayer('');
         setScreen('login');
-    }, [user]);
+    }, [user, socket, room]);
 
     return (
         <>

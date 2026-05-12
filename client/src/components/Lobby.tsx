@@ -53,6 +53,8 @@ const Lobby = ({ onJoinRoom, getApiUrl }: LobbyProps) => {
             .catch(() => {});
     }, [getApiUrl]);
 
+    const presetSet = new Set(PRESETS);
+
     const handleCreateRoom = (e: React.FormEvent) => {
         e.preventDefault();
         const name = roomInputRef.current?.value.trim();
@@ -69,10 +71,13 @@ const Lobby = ({ onJoinRoom, getApiUrl }: LobbyProps) => {
                 <p>Join a game or create your own room.</p>
             </div>
             <div className="room-grid" role="list" aria-label="Available rooms">
-                {PRESETS.map(name => (
-                    <RoomCard key={name} name={name} maxPlayers={8} onJoin={() => onJoinRoom(name)} />
-                ))}
-                {rooms.map(r => (
+                {PRESETS.map(name => {
+                    const live = rooms.find(r => r.name === name);
+                    return (
+                        <RoomCard key={name} name={name} playerCount={live?.playerCount} maxPlayers={8} onJoin={() => onJoinRoom(name)} />
+                    );
+                })}
+                {rooms.filter(r => !presetSet.has(r.name)).map(r => (
                     <RoomCard key={r.name} name={r.name} playerCount={r.playerCount} maxPlayers={r.maxPlayers} onJoin={() => onJoinRoom(r.name)} />
                 ))}
             </div>

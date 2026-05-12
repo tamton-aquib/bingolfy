@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { GoogleAuthProvider, signInWithRedirect } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { auth } from "../firebase";
 
 const provider = new GoogleAuthProvider();
@@ -23,7 +23,9 @@ const Login = ({ setAnonUser }: { setAnonUser: (name: string) => void }) => {
 
     const googleSignIn = () => {
         setGoogleLoading(true);
-        signInWithRedirect(auth, provider);
+        signInWithPopup(auth, provider).catch(() => {
+            setGoogleLoading(false);
+        });
     };
 
     const handleAnonSubmit = (e: React.FormEvent) => {
