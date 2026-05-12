@@ -1,179 +1,196 @@
-import { useState, useEffect } from "react";
-import "./styles/Game.css";
+import { useState, useEffect, useCallback, useRef } from "react";
+import BingoProgress from "./BingoProgress";
+import WinOverlay from "./WinOverlay";
 
-const Game = ({ playingUsers, room, userDetails, socket, grid, setGrid }) => {
-    const generateWinningPattern = (g) => {
+interface Player {
+    name: string;
+    ready: boolean;
+}
 
-        // Thanks to chatGPT for generating this.
-        return [
-            // Rows
-            [g[0][0], g[0][1], g[0][2], g[0][3], g[0][4]],
-            [g[1][0], g[1][1], g[1][2], g[1][3], g[1][4]],
-            [g[2][0], g[2][1], g[2][2], g[2][3], g[2][4]],
-            [g[3][0], g[3][1], g[3][2], g[3][3], g[3][4]],
-            [g[4][0], g[4][1], g[4][2], g[4][3], g[4][4]],
+interface GameProps {
+    room: string;
+    grid: number[][];
+    myName: string;
+    playingUsers: Player[];
+    currentPlayer: string;
+    socket: {
+        send: (type: string, data?: Record<string, unknown>) => void;
+        subscribe: (type: string, handler: (payload: unknown) => void) => () => void;
+    };
+    onGoHome: () => void;
+}
 
-            // Columns
-            [g[0][0], g[1][0], g[2][0], g[3][0], g[4][0]],
-            [g[0][1], g[1][1], g[2][1], g[3][1], g[4][1]],
-            [g[0][2], g[1][2], g[2][2], g[3][2], g[4][2]],
-            [g[0][3], g[1][3], g[2][3], g[3][3], g[4][3]],
-            [g[0][4], g[1][4], g[2][4], g[3][4], g[4][4]],
-
-            //Diagonals
-            [g[0][0], g[1][1], g[2][2], g[3][3], g[4][4]],
-            [g[0][4], g[1][3], g[2][2], g[3][1], g[4][0]]
-        ];
-
+function countLines(grid: number[][], marked: Set<number>): number {
+    let lines = 0;
+    for (let r = 0; r < 5; r++) {
+        if (grid[r].every(n => marked.has(n))) lines++;
     }
+    for (let c = 0; c < 5; c++) {
+        let all = true;
+        for (let r = 0; r < 5; r++) {
+            if (!marked.has(grid[r][c])) { all = false; break; }
+        }
+        if (all) lines++;
+    }
+    let d1 = true, d2 = true;
+    for (let i = 0; i < 5; i++) {
+        if (!marked.has(grid[i][i])) d1 = false;
+        if (!marked.has(grid[i][4 - i])) d2 = false;
+    }
+    if (d1) lines++;
+    if (d2) lines++;
+    return lines;
+}
 
-    const winningCombos = generateWinningPattern(grid);
+const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHome }: GameProps) => {
+    const [marked, setMarked] = useState<Set<number>>(new Set());
+    const [lines, setLines] = useState(0);
+    const [wonUser, setWonUser] = useState<string | null>(null);
+    const [bingoReady, setBingoReady] = useState(false);
+    const isMyTurn = currentPlayer === myName;
+    const markedRef = useRef(marked);
 
-    const [clickedTiles, setClickedTiles] = useState([]);
-    const [score, setScore] = useState(0);
-    const [wonUser, setWonUser] = useState();
-    const [currentPlayer, setCurrentPlayer] = useState();
+    markedRef.current = marked;
 
-    const gridNumbers = grid.map(row => row.map(col => (
-        // biome-ignore lint/a11y/useKeyWithClickEvents: <explanation>
-        <div
-            key={col}
-            id={col}
-            className="game-grid-box game-grid-element"
-            onClick={() => tileClickHandler(col)}
-        >
-            {col}
-        </div>
-    )));
-
-    const tileClickHandler = (n) => {
-        if (!currentPlayer || currentPlayer !== userDetails.name || clickedTiles.includes(n)) return;
-
-        document.getElementById(n).style.backgroundColor = "#9ce5c0";
-        document.getElementById(n).style.color = "#000000";
-        setClickedTiles(p => {
-            socket.emit(
-                "tile_clicked",
-                {
-                    tiles: [...p, n],
-                    room: room,
-                }
-            );
-            return [...p, n];
+    useEffect(() => {
+        const unsubFlush = socket.subscribe("flush", (data: unknown) => {
+            const arr = data as number[];
+            const s = new Set(arr);
+            setMarked(s);
+            setLines(countLines(grid, s));
         });
 
-        const idx = playingUsers.findIndex(player => player.name === currentPlayer);
-        const nextPlayer = playingUsers[(idx+1) % playingUsers.length]
+        const unsubNext = socket.subscribe("next_player", (data: unknown) => {
+            currentPlayer = data as string;
+            setLines(countLines(grid, markedRef.current));
+        });
+
+        const unsubGameOver = socket.subscribe("game_over", (data: unknown) => {
+            setWonUser((data as Record<string, string>).user);
+        });
+
+        return () => { unsubFlush(); unsubNext(); unsubGameOver(); };
+    }, []);
+
+    const passTurn = useCallback(() => {
+        const idx = playingUsers.findIndex(p => p.name === currentPlayer);
+        const nextPlayer = playingUsers[(idx + 1) % playingUsers.length];
         if (nextPlayer) {
-            socket.emit("set_next_player", {user: nextPlayer.name, room: room})
+            socket.send("set_next_player", { user: nextPlayer.name, room });
         }
-    }
+    }, [playingUsers, currentPlayer, socket, room]);
 
-    /// Check GameOver
-    // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
-    useEffect(() => {
-        const score = winningCombos.filter(row => row.filter(item => clickedTiles.includes(item)).length === 5).length;
-        setScore(score);
-    }, [clickedTiles])
+    const handleTileClick = useCallback((n: number) => {
+        if (!isMyTurn || marked.has(n) || wonUser) return;
+        const next = new Set(marked);
+        next.add(n);
+        setMarked(next);
+        const l = countLines(grid, next);
+        setLines(l);
+        socket.send("tile_clicked", { tiles: [...next], room });
+        if (l >= 5) { setBingoReady(true); }
+        passTurn();
+    }, [isMyTurn, marked, wonUser, grid, socket, room, passTurn]);
 
-    useEffect(() => {
-        socket.on("flush", (data) => {
-            document.getElementById(data[data.length-1]).style.backgroundColor = "#9ce5c0"
-            document.getElementById(data[data.length-1]).style.color = "#000000"
-            setClickedTiles(data);
-        })
+    const handleCallBingo = useCallback(() => {
+        if (!bingoReady || wonUser) return;
+        socket.send("user_won", { user: myName, room });
+        setWonUser(myName);
+    }, [bingoReady, wonUser, socket, myName, room]);
 
-        socket.on("next_player", (data) => {
-            setCurrentPlayer(data)
-        })
-
-        socket.on("game_over", (data) => {
-            setWonUser(data.user);
-        })
-    }, [socket]);
-
-    const userReadyHandler = () => {
-        socket.emit("user_ready", {user: userDetails.name, room: room})
-    }
-
-    const GameOver = () => {
-        setWonUser(userDetails.name);
-        socket.emit("user_won", {user: userDetails.name, room: room});
-    }
-
-    // FIX: reidrect to select room page?
-    const restartGame = () => {
+    const handlePlayAgain = useCallback(() => {
         setWonUser(null);
-        setScore(0);
-        setGrid(null);
+        setMarked(new Set());
+        setLines(0);
+        setBingoReady(false);
+    }, []);
+
+    if (wonUser) {
+        return (
+            <WinOverlay
+                winnerName={wonUser}
+                onPlayAgain={handlePlayAgain}
+                onGoHome={onGoHome}
+                visible={true}
+            />
+        );
     }
 
+    const currentIdx = playingUsers.findIndex(p => p.name === currentPlayer);
+    const flat = grid.flat();
 
     return (
-        <div className="game-container">
-            {
-                wonUser
-                    ?
-                    <>
-                        <h1>{wonUser} Called BINGO!</h1>
-                        <button className="bingo-button" onClick={restartGame} type="reset">Restart</button>
-                    </>
-                    :
-                    <>
-                        {/* <p> Hi {userDetails.name}</p> */}
-                        <h1>Room: {room}</h1>
-
-                        {
-                            score >= 5
-                                ?
-                                <button className="bingo-button" onClick={GameOver} type="button">
-                                    BINGO
-                                </button>
-                                :
-                                <span>
-                                    {"BINGO".slice(0, score)}
-                                </span>
-                        }
-
-                        <div className="ingame-container">
-                            <div className="game-grid">
-                                {gridNumbers}
-                            </div>
-
-                            <ul className="user-list">
-                                { playingUsers.length ?
-                                    <>
-                                        {currentPlayer ? `${currentPlayer}'s Turn!` : ""}
-                                        <div className="user-list-header">
-                                            Players
-                                        </div>
-                                    </>
-                                    : ''
-                                }
-                                {
-                                    playingUsers.map(player => {
-                                        return (
-                                            <li
-                                                className={`user-list-item ${player.ready && "ready-user"}`}
-                                                key={player.name}
-                                            >
-                                                { player.name }
-                                                { (player.name === userDetails.name && !player.ready) &&
-                                                    <button onClick={userReadyHandler} type="button">
-                                                        Ready
-                                                    </button>
-                                                }
-                                            </li>
-                                        )
-                                    })
-                                }
-                            </ul>
+        <>
+            <div className="game-layout">
+                <div className="game-main">
+                    {isMyTurn ? (
+                        <div className="game-turn-banner player-turn">
+                            YOUR TURN — Pick a number!
                         </div>
-
-                    </>
-            }
-        </div>
+                    ) : (
+                        <div className="game-turn-banner other-turn">
+                            {currentPlayer}'s Turn
+                        </div>
+                    )}
+                    <div className="game-grid" role="grid" aria-label="Game board">
+                        {flat.map((n, i) => {
+                            const m = marked.has(n);
+                            return (
+                                <div
+                                    key={i}
+                                    className={`tile${m ? ' marked' : ''}${!isMyTurn ? ' disabled' : ''}`}
+                                    role="gridcell"
+                                    tabIndex={m ? -1 : 0}
+                                    aria-label={`Number ${n}${m ? ', marked' : ''}`}
+                                    onClick={() => handleTileClick(n)}
+                                    onKeyDown={e => { if (e.key === 'Enter') handleTileClick(n); }}
+                                >
+                                    {n}
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <BingoProgress lines={lines} />
+                    <div className="game-actions">
+                        <button
+                            className={`bingo-call-btn${bingoReady ? ' enabled' : ''}`}
+                            onClick={handleCallBingo}
+                            disabled={!bingoReady}
+                        >
+                            CALL BINGO!
+                        </button>
+                    </div>
+                </div>
+                <aside className="game-sidebar" aria-label="Player list">
+                    <h3>PLAYERS</h3>
+                    <div className="player-list" role="list">
+                        {playingUsers.map((p, i) => (
+                            <div
+                                key={p.name}
+                                className={`game-player${p.name === myName ? ' is-you' : ''}${i === currentIdx ? ' is-current' : ''}`}
+                                role="listitem"
+                            >
+                                <div className="avatar">{p.name.charAt(0).toUpperCase()}</div>
+                                <div className="player-info">
+                                    <div className="name">{p.name}{p.name === myName ? ' (you)' : ''}</div>
+                                    <div className="status">
+                                        {i === currentIdx ? 'Current turn' : 'Waiting'}
+                                    </div>
+                                </div>
+                                {i === currentIdx && <span className="turn-arrow">&#9668;</span>}
+                            </div>
+                        ))}
+                    </div>
+                </aside>
+            </div>
+            <WinOverlay
+                winnerName={wonUser || ''}
+                onPlayAgain={handlePlayAgain}
+                onGoHome={onGoHome}
+                visible={false}
+            />
+        </>
     );
-}
+};
 
 export default Game;

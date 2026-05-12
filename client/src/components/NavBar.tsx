@@ -1,23 +1,22 @@
-import { auth } from "../firebase";
-import { useAuthState } from "react-firebase-hooks/auth";
+import ThemeToggle from "./ThemeToggle";
 
-import "./styles/NavBar.css";
+interface NavBarProps {
+    signedIn: boolean;
+    onSignOut: () => void;
+}
 
-const NavBar = () => {
-    const [user] = useAuthState(auth);
-
-    const googleSignOut = () => {
-        auth.signOut();
-    };
-
+const NavBar = ({ signedIn, onSignOut }: NavBarProps) => {
     return (
-        <nav className="nav-bar">
-            {user && (
-                <button onClick={googleSignOut} className="sign-out" type="button">
-                    Sign Out
-                </button>
-            )}
+        <nav className="nav" role="navigation" aria-label="Main navigation">
+            <div className="nav-logo"><span className="accent">BINGO</span>LFY</div>
+            <div className="nav-actions">
+                <ThemeToggle />
+                {signedIn && (
+                    <button className="sign-out-btn" onClick={onSignOut}>SIGN OUT</button>
+                )}
+            </div>
         </nav>
     );
 };
+
 export default NavBar;

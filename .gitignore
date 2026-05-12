@@ -3,3 +3,5 @@
 /client/.env
 /server/dist
 /client/build
+/.opencode
+/graphify-out

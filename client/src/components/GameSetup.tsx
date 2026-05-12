@@ -1,53 +1,82 @@
 import { useState } from "react";
-import "./styles/Game.css";
 
-const GRID = [
-    [1, 2, 3, 4, 5],
-    [6, 7, 8, 9, 10],
-    [11, 12, 13, 14, 15],
-    [16, 17, 18, 19, 20],
-    [21, 22, 23, 24, 25]
-];
+interface GameSetupProps {
+    room: string;
+    playerCount: number;
+    onContinue: (grid: number[][]) => void;
+}
 
-const GameSetup = ({ setGrid }) => {
-    const shuffleGrid = (grid) =>  {
-        const cgrid = [...grid];
-        for (let i = cgrid.length - 1; i > 0; i--) {
-            for (let j = cgrid[i].length - 1; j > 0; j--) {
-                const randomRow = Math.floor(Math.random() * (i + 1));
-                const randomCol = Math.floor(Math.random() * (j + 1));
-                [grid[i][j], grid[randomRow][randomCol]] = [grid[randomRow][randomCol], grid[i][j]];
-            }
-        }
-        return cgrid;
+function generateGrid(): number[][] {
+    const nums = Array.from({ length: 25 }, (_, i) => i + 1);
+    for (let i = nums.length - 1; i > 0; i--) {
+        const j = Math.random() * i | 0;
+        [nums[i], nums[j]] = [nums[j], nums[i]];
     }
+    const g: number[][] = [];
+    for (let r = 0; r < 5; r++) g.push(nums.slice(r * 5, r * 5 + 5));
+    return g;
+}
 
-    const [gridNumbers, setGridNumbers] = useState(shuffleGrid(GRID));
+const GameSetup = ({ room, playerCount, onContinue }: GameSetupProps) => {
+    const [grid, setGrid] = useState(generateGrid);
+    const [submitted, setSubmitted] = useState(false);
+
+    const handleShuffle = () => {
+        if (submitted) return;
+        setGrid(generateGrid());
+    };
+
+    const handleContinue = () => {
+        if (submitted) return;
+        setSubmitted(true);
+        onContinue(grid);
+    };
+
+    const flat = grid.flat();
 
     return (
-        <div style={{display: "flex", flexDirection: "column"}}>
-            <div className="game-grid">
-                {gridNumbers.map(row => {
-                    return row.map(col => {
-                        return <div
-                            key={col}
-                            className="game-grid-box"
-                            id={col}
-                        >
-                            {col}
-                        </div>
-                    })
-                })}
+        <div className="setup-layout">
+            <div className="setup-grid-area">
+                <h2>YOUR GRID</h2>
+                <p style={{ fontSize: '.75rem', color: 'var(--muted)', marginBottom: 'var(--space-lg)', textTransform: 'uppercase' }}>
+                    Shuffle until you're happy, then continue.
+                </p>
+                <div className="grid-5x5" role="grid" aria-label="Your bingo grid">
+                    {flat.map(n => (
+                        <div key={n} className="tile" role="gridcell">{n}</div>
+                    ))}
+                </div>
+                <div className="setup-actions">
+                    <button className="btn" onClick={handleShuffle} disabled={submitted}>SHUFFLE</button>
+                    <button className="btn btn-primary" onClick={handleContinue} disabled={submitted}>
+                        {submitted ? 'WAITING...' : 'CONTINUE'}
+                    </button>
+                </div>
+                {submitted && (
+                    <p style={{ marginTop: 'var(--space-md)', fontSize: '.875rem', color: 'var(--accent)', textAlign: 'center' }}>
+                        Waiting for other players to finish setup...
+                    </p>
+                )}
             </div>
-
-            <div className="setup-button-container">
-                <button className="setup-button" onClick={() => {
-                    setGridNumbers(g => shuffleGrid(g))
-                }}>Shuffle</button>
-                <button className="setup-button" onClick={() => setGrid(gridNumbers)}>Continue</button>
+            <div className="setup-info">
+                <div>
+                    <p style={{ fontSize: '.75rem', color: 'var(--muted)', textTransform: 'uppercase' }}>ROOM</p>
+                    <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', marginTop: 'var(--space-xs)', fontWeight: 700 }}>
+                        {room.toUpperCase()}
+                    </p>
+                </div>
+                <div>
+                    <p style={{ fontSize: '.75rem', color: 'var(--muted)', textTransform: 'uppercase' }}>PLAYERS</p>
+                    <p style={{ fontSize: '1.25rem', marginTop: 'var(--space-xs)', fontWeight: 700 }}>
+                        {playerCount} players
+                    </p>
+                </div>
+                <p style={{ fontSize: '.75rem', color: 'var(--muted)' }}>
+                    Numbers 1–25 are placed randomly. Once you continue, your grid is locked for the game.
+                </p>
             </div>
         </div>
-    )
+    );
 };
 
 export default GameSetup;
