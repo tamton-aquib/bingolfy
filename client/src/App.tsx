@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuthState } from "react-firebase-hooks/auth";
 
 import NavBar from './components/NavBar';
@@ -70,6 +70,14 @@ function App() {
         };
     }, [socket]);
 
+    const wasReadyRef = useRef(false);
+    useEffect(() => {
+        if (socket.ready && !wasReadyRef.current && room && userDetails.name) {
+            socket.send("join_room", { room, name: userDetails.name });
+        }
+        wasReadyRef.current = socket.ready;
+    }, [socket.ready, room, userDetails.name]);
+
     const handleJoinRoom = useCallback((name: string) => {
         setRoom(name);
         socket.send("join_room", { room: name, name: userDetails.name });
@@ -122,6 +130,7 @@ function App() {
     return (
         <>
             <NavBar onSignOut={handleSignOut} signedIn={isSignedIn} />
+            {!socket.ready && <div className="reconnect-banner">Reconnecting...</div>}
             <div className="screen-container">
             {screen === 'login' && <Login setAnonUser={setAnonUser} />}
 

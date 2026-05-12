@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 const PRESETS = [
     "bingo-basement",
@@ -46,12 +46,18 @@ const Lobby = ({ onJoinRoom, getApiUrl }: LobbyProps) => {
     const [rooms, setRooms] = useState<RoomInfo[]>([]);
     const roomInputRef = useRef<HTMLInputElement>(null!);
 
-    useEffect(() => {
+    const fetchRooms = useCallback(() => {
         fetch(getApiUrl)
             .then(r => r.json())
             .then(data => setRooms(data))
             .catch(() => {});
     }, [getApiUrl]);
+
+    useEffect(() => {
+        fetchRooms();
+        const id = setInterval(fetchRooms, 5000);
+        return () => clearInterval(id);
+    }, [fetchRooms]);
 
     const presetSet = new Set(PRESETS);
 
@@ -70,16 +76,43 @@ const Lobby = ({ onJoinRoom, getApiUrl }: LobbyProps) => {
                 <h2>ROOMS</h2>
                 <p>Join a game or create your own room.</p>
             </div>
-            <div className="room-grid" role="list" aria-label="Available rooms">
+            <div className="create-room-section">
+                <p style={{ fontSize: '.75rem', color: 'var(--muted)', textTransform: 'uppercase' }}>CREATE ROOM</p>
+                <form className="create-room-form" onSubmit={handleCreateRoom} aria-label="Create or join a room">
+                    <input
+                        type="text"
+                        ref={roomInputRef}
+                        placeholder="Room name"
+                        required
+                        minLength={2}
+                        maxLength={20}
+                        aria-label="Room name"
+                    />
+                    <button className="btn btn-primary" type="submit">JOIN</button>
+                </form>
+            </div>
+            {rooms.filter(r => !presetSet.has(r.name)).length > 0 && (
+                <>
+                    <p style={{ fontSize: '.75rem', color: 'var(--muted)', textTransform: 'uppercase', marginTop: 'var(--space-lg)', marginBottom: 'var(--space-md)' }}>
+                        ACTIVE ROOMS
+                    </p>
+                    <div className="room-grid" role="list" aria-label="Active rooms">
+                        {rooms.filter(r => !presetSet.has(r.name)).map(r => (
+                            <RoomCard key={r.name} name={r.name} playerCount={r.playerCount} maxPlayers={r.maxPlayers} onJoin={() => onJoinRoom(r.name)} />
+                        ))}
+                    </div>
+                </>
+            )}
+            <p style={{ fontSize: '.75rem', color: 'var(--muted)', textTransform: 'uppercase', marginTop: 'var(--space-lg)', marginBottom: 'var(--space-md)' }}>
+                QUICK JOIN
+            </p>
+            <div className="room-grid" role="list" aria-label="Quick join rooms">
                 {PRESETS.map(name => {
                     const live = rooms.find(r => r.name === name);
                     return (
                         <RoomCard key={name} name={name} playerCount={live?.playerCount} maxPlayers={8} onJoin={() => onJoinRoom(name)} />
                     );
                 })}
-                {rooms.filter(r => !presetSet.has(r.name)).map(r => (
-                    <RoomCard key={r.name} name={r.name} playerCount={r.playerCount} maxPlayers={r.maxPlayers} onJoin={() => onJoinRoom(r.name)} />
-                ))}
             </div>
             <div className="create-room-section">
                 <p style={{ fontSize: '.75rem', color: 'var(--muted)', textTransform: 'uppercase' }}>CREATE ROOM</p>

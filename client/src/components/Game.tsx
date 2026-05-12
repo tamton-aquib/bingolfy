@@ -60,16 +60,11 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
             setLines(countLines(grid, s));
         });
 
-        const unsubNext = socket.subscribe("next_player", (data: unknown) => {
-            currentPlayer = data as string;
-            setLines(countLines(grid, markedRef.current));
-        });
-
         const unsubGameOver = socket.subscribe("game_over", (data: unknown) => {
             setWonUser((data as Record<string, string>).user);
         });
 
-        return () => { unsubFlush(); unsubNext(); unsubGameOver(); };
+        return () => { unsubFlush(); unsubGameOver(); };
     }, []);
 
     const passTurn = useCallback(() => {
@@ -105,17 +100,6 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
         setBingoReady(false);
     }, []);
 
-    if (wonUser) {
-        return (
-            <WinOverlay
-                winnerName={wonUser}
-                onPlayAgain={handlePlayAgain}
-                onGoHome={onGoHome}
-                visible={true}
-            />
-        );
-    }
-
     const currentIdx = playingUsers.findIndex(p => p.name === currentPlayer);
     const flat = grid.flat();
 
@@ -150,6 +134,7 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
                             );
                         })}
                     </div>
+                    <p className="tiles-counter">{marked.size}/25 called</p>
                     <BingoProgress lines={lines} />
                     <div className="game-actions">
                         <button
@@ -187,7 +172,7 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
                 winnerName={wonUser || ''}
                 onPlayAgain={handlePlayAgain}
                 onGoHome={onGoHome}
-                visible={false}
+                visible={!!wonUser}
             />
         </>
     );

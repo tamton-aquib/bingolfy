@@ -68,6 +68,12 @@ a:hover{opacity:.7}
 .theme-btn:hover,.sign-out-btn:hover{box-shadow:var(--shadow-hover)}
 .theme-btn:active,.sign-out-btn:active{box-shadow:var(--shadow-active);transform:translate(3px,3px)}
 
+.reconnect-banner{
+  background:var(--accent);color:var(--bg);text-align:center;
+  font-family:var(--font-body);font-size:.75rem;text-transform:uppercase;
+  padding:var(--space-xs) 0;font-weight:700;letter-spacing:.1em;
+}
+
 h1,h2,h3{font-family:var(--font-display);font-weight:700;line-height:1.1}
 h1{font-size:clamp(2.5rem,6vw,5rem);letter-spacing:-.03em}
 h2{font-size:clamp(1.75rem,4vw,3rem);letter-spacing:-.02em}
@@ -272,6 +278,8 @@ input:focus{border-color:var(--accent);box-shadow:inset 3px 3px 0 0 var(--accent
 .game-grid .tile:active:not(.marked):not(.disabled){box-shadow:var(--shadow-active);transform:translate(3px,3px)}
 .game-grid .tile.marked{background:var(--success);color:var(--bg);border-color:var(--success);cursor:default;box-shadow:3px 3px 0 0 oklch(45% 0.18 145)}
 .game-grid .tile.disabled{opacity:.4;cursor:not-allowed}
+.tiles-counter{font-size:.75rem;color:var(--muted);text-align:center;margin:var(--space-sm) 0 0}
+
 .bingo-progress{
   display:flex;gap:var(--space-xs);font-size:clamp(2rem,4vw,3rem);
   font-family:var(--font-display);letter-spacing:.08em;font-weight:700;
