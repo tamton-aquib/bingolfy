@@ -1,8 +1,7 @@
 # build stage
 FROM node:20-alpine AS build
 WORKDIR /app
-ARG VITE_SOCKET_URL
-ENV VITE_SOCKET_URL=$VITE_SOCKET_URL
+ENV VITE_SOCKET_URL=wss://bingolfy.tamton.dev/game
 COPY package*.json ./
 RUN npm ci
 COPY . .

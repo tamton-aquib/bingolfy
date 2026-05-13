@@ -38,4 +38,4 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository }}/client:latest
           build-args: |
-            VITE_SOCKET_URL=wss://bingolfy.tamton.dev
+            VITE_SOCKET_URL=wss://bingolfy.tamton.dev/game
