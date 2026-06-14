@@ -1,9 +1,12 @@
 package com.tamton.bingolfy.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -19,43 +22,80 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class GameHandler extends TextWebSocketHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GameHandler.class);
+    private static final Set<String> VALID_TYPES = Set.of(
+            "join_room", "user_ready", "tile_clicked", "user_won",
+            "set_next_player", "leave_room", "setup_complete", "request_state", "reset_game"
+    );
+
     private final ObjectMapper objectMapper;
     private final GameService gameService;
 
-    private final Set<WebSocketSession> sessions = ConcurrentHashMap.newKeySet();
     private final Map<String, Set<WebSocketSession>> roomSessions = new ConcurrentHashMap<>();
     private final Map<String, String> sessionRooms = new ConcurrentHashMap<>();
     private final Map<String, String> sessionUsers = new ConcurrentHashMap<>();
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
-        sessions.add(session);
-        System.out.println("User connected: " + session.getId());
+        log.info("User connected: {}", session.getId());
     }
 
     @Override
-    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-        var jsonNode = objectMapper.readTree(message.getPayload());
-        String type = jsonNode.get("type").asText();
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) {
+        try {
+            var jsonNode = objectMapper.readTree(message.getPayload());
+            var typeNode = jsonNode.get("type");
+            if (typeNode == null || !typeNode.isTextual()) {
+                sendToSession(session, "error", "Missing or invalid 'type' field");
+                return;
+            }
+            String type = typeNode.asText();
+            if (!VALID_TYPES.contains(type)) {
+                sendToSession(session, "error", "Unknown message type: " + type);
+                return;
+            }
 
-        switch (type) {
-            case "join_room" -> handleJoinRoom(session, jsonNode);
-            case "user_ready" -> handleUserReady(session, jsonNode);
-            case "tile_clicked" -> handleTileClicked(session, jsonNode);
-            case "user_won" -> handleUserWon(session, jsonNode);
-            case "set_next_player" -> handleSetNextPlayer(session, jsonNode);
-            case "leave_room" -> handleLeaveRoom(session);
-            case "setup_complete" -> handleSetupComplete(session);
-            default -> System.err.println("Unknown message type: " + type);
+            switch (type) {
+                case "join_room" -> handleJoinRoom(session, jsonNode);
+                case "user_ready" -> handleUserReady(session);
+                case "tile_clicked" -> handleTileClicked(session, jsonNode);
+                case "user_won" -> handleUserWon(session);
+                case "set_next_player" -> handleSetNextPlayer(session, jsonNode);
+                case "leave_room" -> handleLeaveRoom(session);
+                case "setup_complete" -> handleSetupComplete(session, jsonNode);
+                case "request_state" -> handleRequestState(session);
+                case "reset_game" -> handleResetGame(session);
+            }
+        } catch (Exception e) {
+            log.error("Error handling message from {}: {}", session.getId(), e.getMessage(), e);
+            try {
+                sendToSession(session, "error", "Invalid message");
+            } catch (Exception ignored) {}
         }
     }
 
-    private void handleJoinRoom(WebSocketSession session, com.fasterxml.jackson.databind.JsonNode json) throws Exception {
-        String room = json.get("room").asText();
-        String name = json.get("name").asText();
+    private void handleJoinRoom(WebSocketSession session, JsonNode json) throws Exception {
+        var roomNode = json.get("room");
+        var nameNode = json.get("name");
+        if (roomNode == null || !roomNode.isTextual() || nameNode == null || !nameNode.isTextual()) {
+            sendToSession(session, "error", "Missing room or name");
+            return;
+        }
+
+        String room = roomNode.asText().trim();
+        String name = nameNode.asText().trim();
+
+        if (room.isEmpty() || room.length() > 50 || name.isEmpty() || name.length() > 30) {
+            sendToSession(session, "error", "Invalid room or name length");
+            return;
+        }
+        if (room.matches(".*[\\x00-\\x1f\\\\/<>&].*") || name.matches(".*[\\x00-\\x1f\\\\/<>&].*")) {
+            sendToSession(session, "error", "Invalid characters in room or name");
+            return;
+        }
 
         String prevRoom = sessionRooms.get(session.getId());
-        if (prevRoom != null && !prevRoom.equals(room)) {
+        if (prevRoom != null) {
             handleLeaveRoom(session);
         }
 
@@ -72,35 +112,74 @@ public class GameHandler extends TextWebSocketHandler {
         broadcastToRoom(room, "user_joined", users);
     }
 
-    private void handleUserReady(WebSocketSession session, com.fasterxml.jackson.databind.JsonNode json) throws Exception {
-        String room = json.get("room").asText();
-        String user = json.get("user").asText();
-        gameService.setUserReady(room, user);
+    private void handleUserReady(WebSocketSession session) throws Exception {
+        String room = sessionRooms.get(session.getId());
+        String user = sessionUsers.get(session.getId());
+        if (room == null || user == null) return;
 
+        gameService.setUserReady(room, user);
         broadcastToRoom(room, "user_joined", gameService.getUsers(room));
 
-        if (gameService.getUserCount(room) >= 2 && gameService.allReady(room)) {
-            gameService.resetAllReady(room);
-            var randomPlayer = gameService.getRandomPlayer(room);
-            broadcastToRoom(room, "all_ready", java.util.Map.of("firstPlayer", randomPlayer.getName()));
+        String firstPlayer = gameService.tryStartReadyPhase(room);
+        if (firstPlayer != null) {
+            broadcastToRoom(room, "all_ready", Map.of("firstPlayer", firstPlayer));
         }
     }
 
-    private void handleTileClicked(WebSocketSession session, com.fasterxml.jackson.databind.JsonNode json) throws Exception {
-        String room = json.get("room").asText();
-        var tiles = objectMapper.treeToValue(json.get("tiles"), Object.class);
-        broadcastToRoom(room, "flush", tiles, session);
+    private void handleTileClicked(WebSocketSession session, JsonNode json) throws Exception {
+        String room = sessionRooms.get(session.getId());
+        String name = sessionUsers.get(session.getId());
+        if (room == null || name == null) return;
+
+        if (!gameService.isPlayersTurn(room, name)) {
+            sendToSession(session, "error", "Not your turn or game not active");
+            return;
+        }
+
+        var tilesNode = json.get("tiles");
+        if (tilesNode == null || !tilesNode.isArray()) {
+            sendToSession(session, "error", "Missing or invalid tiles");
+            return;
+        }
+
+        int[] tiles = objectMapper.treeToValue(tilesNode, int[].class);
+        if (tiles.length > 25) {
+            sendToSession(session, "error", "Too many tiles");
+            return;
+        }
+
+        if (!gameService.updateCalledNumbers(room, tiles)) {
+            sendToSession(session, "error", "Invalid tiles");
+            return;
+        }
+
+        Set<Integer> called = gameService.getCalledNumbers(room);
+        broadcastToRoom(room, "flush", called);
     }
 
-    private void handleUserWon(WebSocketSession session, com.fasterxml.jackson.databind.JsonNode json) throws Exception {
-        String room = json.get("room").asText();
-        broadcastToRoom(room, "game_over", json);
+    private void handleUserWon(WebSocketSession session) throws Exception {
+        String room = sessionRooms.get(session.getId());
+        String name = sessionUsers.get(session.getId());
+        if (room == null || name == null) return;
+
+        int lines = gameService.tryClaimWin(room, name);
+        if (lines >= 5) {
+            broadcastToRoom(room, "game_over", Map.of("user", name));
+        } else if (lines >= 0) {
+            sendToSession(session, "win_rejected", "Not enough lines");
+        }
     }
 
-    private void handleSetNextPlayer(WebSocketSession session, com.fasterxml.jackson.databind.JsonNode json) throws Exception {
-        String room = json.get("room").asText();
-        String user = json.get("user").asText();
-        broadcastToRoom(room, "next_player", user);
+    private void handleSetNextPlayer(WebSocketSession session, JsonNode json) throws Exception {
+        String room = sessionRooms.get(session.getId());
+        if (room == null) return;
+
+        var userNode = json.get("user");
+        if (userNode == null || !userNode.isTextual()) return;
+
+        String nextPlayer = userNode.asText();
+        gameService.advanceTurn(room, nextPlayer);
+        broadcastToRoom(room, "next_player", nextPlayer);
     }
 
     private void handleLeaveRoom(WebSocketSession session) {
@@ -120,22 +199,72 @@ public class GameHandler extends TextWebSocketHandler {
             try {
                 broadcastToRoom(room, "user_joined", gameService.getUsers(room));
             } catch (Exception e) {
-                System.err.println("Error broadcasting after leave: " + e.getMessage());
+                log.error("Error broadcasting after leave: {}", e.getMessage());
             }
         }
     }
 
-    private void handleSetupComplete(WebSocketSession session) throws Exception {
+    private void handleSetupComplete(WebSocketSession session, JsonNode json) throws Exception {
         String room = sessionRooms.get(session.getId());
         String name = sessionUsers.get(session.getId());
         if (room == null || name == null) return;
 
-        boolean allDone = gameService.markSetupComplete(room, name);
-        if (allDone) {
-            gameService.resetSetupComplete(room);
-            var firstPlayer = gameService.getRandomPlayer(room);
-            broadcastToRoom(room, "game_started", java.util.Map.of("firstPlayer", firstPlayer.getName()));
+        var gridNode = json.get("grid");
+        if (gridNode == null || !gridNode.isArray() || gridNode.size() != 5) {
+            sendToSession(session, "error", "Missing or invalid grid");
+            return;
         }
+
+        int[][] grid = new int[5][5];
+        boolean[] seen = new boolean[26]; // 1-25
+        for (int r = 0; r < 5; r++) {
+            var row = gridNode.get(r);
+            if (!row.isArray() || row.size() != 5) {
+                sendToSession(session, "error", "Invalid grid row");
+                return;
+            }
+            for (int c = 0; c < 5; c++) {
+                int val = row.get(c).asInt();
+                if (val < 1 || val > 25 || seen[val]) {
+                    sendToSession(session, "error", "Invalid grid value");
+                    return;
+                }
+                seen[val] = true;
+                grid[r][c] = val;
+            }
+        }
+
+        gameService.storeGrid(room, name, grid);
+
+        String firstPlayer = gameService.tryStartGame(room, name);
+        if (firstPlayer != null) {
+            broadcastToRoom(room, "game_started", Map.of("firstPlayer", firstPlayer));
+        }
+    }
+
+    private void handleRequestState(WebSocketSession session) throws Exception {
+        String room = sessionRooms.get(session.getId());
+        String name = sessionUsers.get(session.getId());
+        if (room == null || name == null) return;
+
+        String phase = gameService.getGamePhase(room);
+        Set<Integer> called = gameService.getCalledNumbers(room);
+        String current = gameService.getCurrentPlayer(room);
+        int lines = gameService.countLines(room, name);
+
+        sendToSession(session, "game_state", Map.of(
+                "phase", phase != null ? phase : "WAITING",
+                "calledNumbers", called,
+                "currentPlayer", current != null ? current : "",
+                "lines", lines
+        ));
+    }
+
+    private void handleResetGame(WebSocketSession session) throws Exception {
+        String room = sessionRooms.get(session.getId());
+        if (room == null) return;
+        gameService.resetGameForRoom(room);
+        broadcastToRoom(room, "game_reset", Map.of());
     }
 
     private void broadcastToRoom(String room, String type, Object payload) throws Exception {
@@ -144,7 +273,7 @@ public class GameHandler extends TextWebSocketHandler {
 
     private void broadcastToRoom(String room, String type, Object payload, WebSocketSession exclude) throws Exception {
         TextMessage msg = new TextMessage(objectMapper.writeValueAsString(
-                java.util.Map.of("type", type, "payload", payload)
+                Map.of("type", type, "payload", payload)
         ));
         Set<WebSocketSession> roomSet = roomSessions.get(room);
         if (roomSet == null) return;
@@ -155,17 +284,16 @@ public class GameHandler extends TextWebSocketHandler {
         }
     }
 
-    private void sendToSession(WebSocketSession session, String type, String message) throws Exception {
+    private void sendToSession(WebSocketSession session, String type, Object payload) throws Exception {
         TextMessage msg = new TextMessage(objectMapper.writeValueAsString(
-                java.util.Map.of("type", type, "payload", message)
+                Map.of("type", type, "payload", payload)
         ));
         if (session.isOpen()) session.sendMessage(msg);
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        sessions.remove(session);
         handleLeaveRoom(session);
-        System.out.println("User disconnected: " + session.getId());
+        log.info("User disconnected: {}", session.getId());
     }
 }

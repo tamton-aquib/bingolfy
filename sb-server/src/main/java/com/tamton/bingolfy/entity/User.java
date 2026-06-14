@@ -2,7 +2,7 @@ package com.tamton.bingolfy.entity;
 
 public class User {
     private String name;
-    private boolean ready;
+    private volatile boolean ready;
 
     public User(String name) {
         this.name = name;

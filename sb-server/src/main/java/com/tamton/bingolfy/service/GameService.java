@@ -6,6 +6,7 @@ import com.tamton.bingolfy.entity.User;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Service
 public class GameService {
@@ -14,81 +15,105 @@ public class GameService {
 
     private final Map<String, List<User>> rooms = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> setupComplete = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, int[][]>> playerGrids = new ConcurrentHashMap<>();
+    private final Map<String, Set<Integer>> calledNumbers = new ConcurrentHashMap<>();
+    private final Map<String, String> currentPlayer = new ConcurrentHashMap<>();
+    private final Map<String, String> gamePhase = new ConcurrentHashMap<>();
+    private final RoomLockManager lockManager = new RoomLockManager();
     private final Random random = new Random();
 
-    public synchronized List<User> joinRoom(String room, String name) {
-        List<User> users = rooms.computeIfAbsent(room, k -> new ArrayList<>());
-        User existing = users.stream()
-                .filter(u -> u.getName().equals(name))
-                .findFirst()
-                .orElse(null);
-        if (existing == null) {
-            if (users.size() >= MAX_PLAYERS) return null;
-            users.add(new User(name));
-        }
-        return List.copyOf(users);
-    }
-
-    public synchronized void setUserReady(String room, String name) {
-        List<User> users = rooms.get(room);
-        if (users == null) return;
-        users.stream()
-                .filter(u -> u.getName().equals(name))
-                .findFirst()
-                .ifPresent(u -> u.setReady(true));
-    }
-
-    public synchronized void resetAllReady(String room) {
-        List<User> users = rooms.get(room);
-        if (users != null) {
-            users.forEach(u -> u.setReady(false));
-        }
-    }
-
-    public synchronized boolean allReady(String room) {
-        List<User> users = rooms.get(room);
-        return users != null && !users.isEmpty() && users.stream().allMatch(User::isReady);
-    }
-
-    public synchronized User getRandomPlayer(String room) {
-        List<User> users = rooms.get(room);
-        return users.get(random.nextInt(users.size()));
-    }
-
-    public synchronized List<User> getUsers(String room) {
-        List<User> users = rooms.get(room);
-        return users == null ? List.of() : List.copyOf(users);
-    }
-
-    public synchronized void removeUser(String room, String name) {
-        List<User> users = rooms.get(room);
-        if (users != null) {
-            users.removeIf(u -> u.getName().equals(name));
-            if (users.isEmpty()) {
-                rooms.remove(room);
-                setupComplete.remove(room);
+    public List<User> joinRoom(String room, String name) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            List<User> users = rooms.computeIfAbsent(room, k -> new ArrayList<>());
+            User existing = users.stream()
+                    .filter(u -> u.getName().equals(name))
+                    .findFirst()
+                    .orElse(null);
+            if (existing == null) {
+                if (users.size() >= MAX_PLAYERS) return null;
+                users.add(new User(name));
             }
+            return List.copyOf(users);
+        } finally {
+            lock.unlock();
         }
     }
 
-    public synchronized boolean markSetupComplete(String room, String name) {
-        setupComplete.computeIfAbsent(room, k -> ConcurrentHashMap.newKeySet()).add(name);
-        List<User> users = rooms.get(room);
-        if (users == null) return false;
-        Set<String> done = setupComplete.get(room);
-        return users.stream().allMatch(u -> done.contains(u.getName()));
+    public void setUserReady(String room, String name) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            List<User> users = rooms.get(room);
+            if (users == null) return;
+            users.stream()
+                    .filter(u -> u.getName().equals(name))
+                    .findFirst()
+                    .ifPresent(u -> u.setReady(true));
+        } finally {
+            lock.unlock();
+        }
     }
 
-    public synchronized void resetSetupComplete(String room) {
-        setupComplete.remove(room);
+    public String tryStartReadyPhase(String room) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            List<User> users = rooms.get(room);
+            if (users == null || users.size() < 2) return null;
+            if (!users.stream().allMatch(User::isReady)) return null;
+            users.forEach(u -> u.setReady(false));
+            User first = users.get(random.nextInt(users.size()));
+            return first.getName();
+        } finally {
+            lock.unlock();
+        }
     }
 
-    public synchronized int getUserCount(String room) {
-        List<User> users = rooms.get(room);
-        return users == null ? 0 : users.size();
+    public User getRandomPlayer(String room) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            List<User> users = rooms.get(room);
+            if (users == null || users.isEmpty()) return null;
+            return users.get(random.nextInt(users.size()));
+        } finally {
+            lock.unlock();
+        }
     }
 
-    public synchronized List<Map<String, Object>> getRoomList() {
+    public List<User> getUsers(String room) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            List<User> users = rooms.get(room);
+            return users == null ? List.of() : List.copyOf(users);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public void removeUser(String room, String name) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            List<User> users = rooms.get(room);
+            if (users != null) {
+                users.removeIf(u -> u.getName().equals(name));
+                if (users.isEmpty()) {
+                    rooms.remove(room);
+                    setupComplete.remove(room);
+                    cleanupRoomStateInternal(room);
+                    lockManager.removeLock(room);
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public List<Map<String, Object>> getRoomList() {
         List<Map<String, Object>> list = new ArrayList<>();
         for (var entry : rooms.entrySet()) {
             list.add(Map.of(
@@ -98,5 +123,193 @@ public class GameService {
             ));
         }
         return list;
+    }
+
+    // --- Phase 1: Game state tracking ---
+
+    public void storeGrid(String room, String name, int[][] grid) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            playerGrids.computeIfAbsent(room, k -> new ConcurrentHashMap<>()).put(name, grid);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public boolean updateCalledNumbers(String room, int[] newTiles) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            Set<Integer> called = calledNumbers.computeIfAbsent(room, k -> ConcurrentHashMap.newKeySet());
+            for (int t : newTiles) {
+                if (t < 1 || t > 25) return false;
+                if (!called.add(t)) return false;
+            }
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public Set<Integer> getCalledNumbers(String room) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            Set<Integer> called = calledNumbers.get(room);
+            return called == null ? Set.of() : Set.copyOf(called);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public int countLines(String room, String name) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            return countLinesInternal(room, name);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private int countLinesInternal(String room, String name) {
+        Map<String, int[][]> grids = playerGrids.get(room);
+        if (grids == null) return 0;
+        int[][] grid = grids.get(name);
+        if (grid == null) return 0;
+        Set<Integer> called = calledNumbers.get(room);
+        if (called == null) return 0;
+
+        int lines = 0;
+        for (int r = 0; r < 5; r++) {
+            boolean all = true;
+            for (int c = 0; c < 5; c++) {
+                if (!called.contains(grid[r][c])) { all = false; break; }
+            }
+            if (all) lines++;
+        }
+        for (int c = 0; c < 5; c++) {
+            boolean all = true;
+            for (int r = 0; r < 5; r++) {
+                if (!called.contains(grid[r][c])) { all = false; break; }
+            }
+            if (all) lines++;
+        }
+        boolean d1 = true, d2 = true;
+        for (int i = 0; i < 5; i++) {
+            if (!called.contains(grid[i][i])) d1 = false;
+            if (!called.contains(grid[i][4 - i])) d2 = false;
+        }
+        if (d1) lines++;
+        if (d2) lines++;
+        return lines;
+    }
+
+    public String getCurrentPlayer(String room) {
+        return currentPlayer.get(room);
+    }
+
+    public String getGamePhase(String room) {
+        return gamePhase.get(room);
+    }
+
+    // --- Phase 2: Atomic compound operations ---
+
+    public boolean isPlayersTurn(String room, String name) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            return "PLAYING".equals(gamePhase.get(room)) && name.equals(currentPlayer.get(room));
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public boolean isGameActive(String room) {
+        return "PLAYING".equals(gamePhase.get(room));
+    }
+
+    public int tryClaimWin(String room, String name) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            if (!"PLAYING".equals(gamePhase.get(room))) return -1;
+            int lines = countLinesInternal(room, name);
+            if (lines >= 5) {
+                gamePhase.put(room, "FINISHED");
+            }
+            return lines;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public void advanceTurn(String room, String nextPlayer) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            if ("PLAYING".equals(gamePhase.get(room))) {
+                currentPlayer.put(room, nextPlayer);
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public void resetGameForRoom(String room) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            calledNumbers.remove(room);
+            playerGrids.remove(room);
+            gamePhase.put(room, "PLAYING");
+            List<User> users = rooms.get(room);
+            if (users != null && !users.isEmpty()) {
+                currentPlayer.put(room, users.get(0).getName());
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    // --- Phase 2: Atomic compound operations ---
+
+    public String tryStartGame(String room, String name) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            setupComplete.computeIfAbsent(room, k -> ConcurrentHashMap.newKeySet()).add(name);
+            List<User> users = rooms.get(room);
+            if (users == null) return null;
+            Set<String> done = setupComplete.get(room);
+            if (!users.stream().allMatch(u -> done.contains(u.getName()))) return null;
+            setupComplete.remove(room);
+            List<User> usersForPick = rooms.get(room);
+            if (usersForPick == null || usersForPick.isEmpty()) return null;
+            User first = usersForPick.get(random.nextInt(usersForPick.size()));
+            currentPlayer.put(room, first.getName());
+            gamePhase.put(room, "PLAYING");
+            return first.getName();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public void cleanupRoomState(String room) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            cleanupRoomStateInternal(room);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void cleanupRoomStateInternal(String room) {
+        playerGrids.remove(room);
+        calledNumbers.remove(room);
+        currentPlayer.remove(room);
+        gamePhase.remove(room);
     }
 }

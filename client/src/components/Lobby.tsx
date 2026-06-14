@@ -44,13 +44,14 @@ const RoomCard = ({ name, playerCount, maxPlayers, onJoin }: { name: string; pla
 
 const Lobby = ({ onJoinRoom, getApiUrl }: LobbyProps) => {
     const [rooms, setRooms] = useState<RoomInfo[]>([]);
+    const [fetchError, setFetchError] = useState(false);
     const roomInputRef = useRef<HTMLInputElement>(null!);
 
     const fetchRooms = useCallback(() => {
         fetch(getApiUrl)
             .then(r => r.json())
-            .then(data => setRooms(data))
-            .catch(() => {});
+            .then(data => { setRooms(data); setFetchError(false); })
+            .catch(() => setFetchError(true));
     }, [getApiUrl]);
 
     useEffect(() => {
@@ -91,6 +92,7 @@ const Lobby = ({ onJoinRoom, getApiUrl }: LobbyProps) => {
                     <button className="btn btn-primary" type="submit">JOIN</button>
                 </form>
             </div>
+            {fetchError && <p className="error-text" role="alert" style={{ marginTop: 'var(--space-md)' }}>Could not load rooms. Retrying...</p>}
             {rooms.filter(r => !presetSet.has(r.name)).length > 0 && (
                 <>
                     <p style={{ fontSize: '.75rem', color: 'var(--muted)', textTransform: 'uppercase', marginTop: 'var(--space-lg)', marginBottom: 'var(--space-md)' }}>

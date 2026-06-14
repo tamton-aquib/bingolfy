@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import BingoProgress from "./BingoProgress";
 import WinOverlay from "./WinOverlay";
 
@@ -48,9 +48,6 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
     const [wonUser, setWonUser] = useState<string | null>(null);
     const [bingoReady, setBingoReady] = useState(false);
     const isMyTurn = currentPlayer === myName;
-    const markedRef = useRef(marked);
-
-    markedRef.current = marked;
 
     useEffect(() => {
         const unsubFlush = socket.subscribe("flush", (data: unknown) => {
@@ -64,7 +61,23 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
             setWonUser((data as Record<string, string>).user);
         });
 
-        return () => { unsubFlush(); unsubGameOver(); };
+        const unsubWinRejected = socket.subscribe("win_rejected", () => {
+            setWonUser(null);
+            setBingoReady(false);
+        });
+
+        const unsubGameState = socket.subscribe("game_state", (data: unknown) => {
+            const d = data as { calledNumbers: number[]; lines: number };
+            if (d.calledNumbers && d.calledNumbers.length > 0) {
+                const s = new Set(d.calledNumbers);
+                setMarked(s);
+                const l = countLines(grid, s);
+                setLines(l);
+                if (l >= 5) setBingoReady(true);
+            }
+        });
+
+        return () => { unsubFlush(); unsubGameOver(); unsubWinRejected(); unsubGameState(); };
     }, []);
 
     const passTurn = useCallback(() => {
@@ -82,7 +95,7 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
         setMarked(next);
         const l = countLines(grid, next);
         setLines(l);
-        socket.send("tile_clicked", { tiles: [...next], room });
+        socket.send("tile_clicked", { tiles: [n], room });
         if (l >= 5) { setBingoReady(true); }
         passTurn();
     }, [isMyTurn, marked, wonUser, grid, socket, room, passTurn]);
@@ -92,13 +105,6 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
         socket.send("user_won", { user: myName, room });
         setWonUser(myName);
     }, [bingoReady, wonUser, socket, myName, room]);
-
-    const handlePlayAgain = useCallback(() => {
-        setWonUser(null);
-        setMarked(new Set());
-        setLines(0);
-        setBingoReady(false);
-    }, []);
 
     const currentIdx = playingUsers.findIndex(p => p.name === currentPlayer);
     const flat = grid.flat();
@@ -127,7 +133,7 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
                                     tabIndex={m ? -1 : 0}
                                     aria-label={`Number ${n}${m ? ', marked' : ''}`}
                                     onClick={() => handleTileClick(n)}
-                                    onKeyDown={e => { if (e.key === 'Enter') handleTileClick(n); }}
+                                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTileClick(n); } }}
                                 >
                                     {n}
                                 </div>
@@ -170,7 +176,6 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
             </div>
             <WinOverlay
                 winnerName={wonUser || ''}
-                onPlayAgain={handlePlayAgain}
                 onGoHome={onGoHome}
                 visible={!!wonUser}
             />

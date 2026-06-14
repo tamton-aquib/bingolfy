@@ -7,6 +7,7 @@ import Lobby from './components/Lobby';
 import WaitingRoom from './components/WaitingRoom';
 import GameSetup from './components/GameSetup';
 import Game from './components/Game';
+import ErrorBoundary from './components/ErrorBoundary';
 import { useWebSocket } from './hooks/useWebSocket';
 import { auth } from "./firebase";
 
@@ -31,9 +32,15 @@ function App() {
     const [grid, setGrid] = useState<number[][] | null>(null);
     const [playingUsers, setPlayingUsers] = useState<Player[]>([]);
     const [currentPlayer, setCurrentPlayer] = useState('');
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const gridRef = useRef<number[][] | null>(null);
 
     const socket = useWebSocket(socketUrl);
     const apiUrl = socketUrl.replace(/^ws/, 'http').replace(/\/game$/, '') + '/api/rooms';
+
+    useEffect(() => {
+        gridRef.current = grid;
+    }, [grid]);
 
     useEffect(() => {
         if (user || anonUser) {
@@ -41,7 +48,7 @@ function App() {
                 name: user?.displayName || anonUser || '',
                 email: user?.email || '',
                 photo: user?.photoURL || '',
-                uid: user?.uid || String(Math.random() * 100),
+                uid: user?.uid || crypto.randomUUID(),
             });
             if (screen === 'login') setScreen('lobby');
         }
@@ -64,9 +71,22 @@ function App() {
             setCurrentPlayer(d.firstPlayer);
             setScreen('game');
         });
+        const unsubGameState = socket.subscribe("game_state", (data: unknown) => {
+            const d = data as { phase: string; calledNumbers: number[]; currentPlayer: string; lines: number };
+            if (d.currentPlayer) setCurrentPlayer(d.currentPlayer);
+            if (d.phase === 'PLAYING' && gridRef.current) {
+                setScreen('game');
+            } else if (d.phase === 'FINISHED') {
+                setScreen('game');
+            }
+        });
+        const unsubError = socket.subscribe("error", (data: unknown) => {
+            setErrorMsg(data as string);
+            setTimeout(() => setErrorMsg(null), 4000);
+        });
         return () => {
             unsubJoined(); unsubNext(); unsubReady();
-            unsubStarted();
+            unsubStarted(); unsubGameState(); unsubError();
         };
     }, [socket]);
 
@@ -75,10 +95,13 @@ function App() {
     useEffect(() => {
         if (socket.ready && !wasReadyRef.current && room && userDetails.name) {
             socket.send("join_room", { room, name: userDetails.name });
+            if (grid) {
+                socket.send("request_state");
+            }
         }
         if (socket.ready) wasEverReadyRef.current = true;
         wasReadyRef.current = socket.ready;
-    }, [socket.ready, room, userDetails.name]);
+    }, [socket.ready, room, userDetails.name, grid]);
 
     const handleJoinRoom = useCallback((name: string) => {
         setRoom(name);
@@ -103,7 +126,7 @@ function App() {
 
     const handleSetupComplete = useCallback((g: number[][]) => {
         setGrid(g);
-        socket.send("setup_complete");
+        socket.send("setup_complete", { grid: g });
     }, [socket]);
 
     const handleGoHome = useCallback(() => {
@@ -130,47 +153,50 @@ function App() {
     }, [user, socket, room]);
 
     return (
-        <>
-            <NavBar onSignOut={handleSignOut} signedIn={isSignedIn} />
-            {!socket.ready && wasEverReadyRef.current && <div className="reconnect-banner">Reconnecting...</div>}
-            <div className="screen-container">
-            {screen === 'login' && <Login setAnonUser={setAnonUser} />}
+        <ErrorBoundary>
+            <>
+                <NavBar onSignOut={handleSignOut} signedIn={isSignedIn} />
+                {!socket.ready && wasEverReadyRef.current && <div className="reconnect-banner">Reconnecting...</div>}
+                {errorMsg && <div className="error-banner" role="alert">{errorMsg}</div>}
+                <div className="screen-container">
+                {screen === 'login' && <Login setAnonUser={setAnonUser} />}
 
-            {screen === 'lobby' && (
-                <Lobby onJoinRoom={handleJoinRoom} getApiUrl={apiUrl} />
-            )}
+                {screen === 'lobby' && (
+                    <Lobby onJoinRoom={handleJoinRoom} getApiUrl={apiUrl} />
+                )}
 
-            {screen === 'waiting' && (
-                <WaitingRoom
-                    room={room}
-                    players={playingUsers}
-                    myName={userDetails.name}
-                    onReady={handleReady}
-                    onLeave={handleLeaveRoom}
-                />
-            )}
+                {screen === 'waiting' && (
+                    <WaitingRoom
+                        room={room}
+                        players={playingUsers}
+                        myName={userDetails.name}
+                        onReady={handleReady}
+                        onLeave={handleLeaveRoom}
+                    />
+                )}
 
-            {screen === 'setup' && (
-                <GameSetup
-                    room={room}
-                    playerCount={playingUsers.length}
-                    onContinue={handleSetupComplete}
-                />
-            )}
+                {screen === 'setup' && (
+                    <GameSetup
+                        room={room}
+                        playerCount={playingUsers.length}
+                        onContinue={handleSetupComplete}
+                    />
+                )}
 
-            {screen === 'game' && grid && (
-                <Game
-                    room={room}
-                    grid={grid}
-                    myName={userDetails.name}
-                    playingUsers={playingUsers}
-                    currentPlayer={currentPlayer}
-                    socket={socket}
-                    onGoHome={handleGoHome}
-                />
-            )}
-        </div>
-        </>
+                {screen === 'game' && grid && (
+                    <Game
+                        room={room}
+                        grid={grid}
+                        myName={userDetails.name}
+                        playingUsers={playingUsers}
+                        currentPlayer={currentPlayer}
+                        socket={socket}
+                        onGoHome={handleGoHome}
+                    />
+                )}
+            </div>
+            </>
+        </ErrorBoundary>
     );
 }
 

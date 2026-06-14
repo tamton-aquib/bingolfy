@@ -20,11 +20,17 @@ const GoogleSvg = () => (
 const Login = ({ setAnonUser }: { setAnonUser: (name: string) => void }) => {
     const inpRef = useRef<HTMLInputElement>(null);
     const [googleLoading, setGoogleLoading] = useState(false);
+    const [googleError, setGoogleError] = useState<string | null>(null);
 
     const googleSignIn = () => {
         setGoogleLoading(true);
-        signInWithPopup(auth, provider).catch(() => {
+        setGoogleError(null);
+        signInWithPopup(auth, provider).catch((err) => {
             setGoogleLoading(false);
+            if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+                return;
+            }
+            setGoogleError('Sign-in failed. Please try again.');
         });
     };
 
@@ -48,6 +54,7 @@ const Login = ({ setAnonUser }: { setAnonUser: (name: string) => void }) => {
                     {googleLoading ? <Spinner /> : <GoogleSvg />}
                     {googleLoading ? 'SIGNING IN...' : 'SIGN IN WITH GOOGLE'}
                 </button>
+                {googleError && <p className="error-text" role="alert">{googleError}</p>}
                 <div className="divider">or</div>
                 <form className="anon-form" onSubmit={handleAnonSubmit} aria-label="Anonymous login">
                     <p style={{ fontSize: '.75rem', color: 'var(--muted)', marginBottom: 'var(--space-xs)' }}>

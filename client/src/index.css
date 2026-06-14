@@ -73,6 +73,15 @@ a:hover{opacity:.7}
   font-family:var(--font-body);font-size:.75rem;text-transform:uppercase;
   padding:var(--space-xs) 0;font-weight:700;letter-spacing:.1em;
 }
+.error-text{
+  color:var(--accent);font-family:var(--font-body);font-size:.8rem;
+  text-align:center;margin-top:var(--space-sm);
+}
+.error-banner{
+  background:var(--accent);color:var(--bg);text-align:center;
+  font-family:var(--font-body);font-size:.75rem;text-transform:uppercase;
+  padding:var(--space-xs) 0;font-weight:700;letter-spacing:.1em;
+}
 
 h1,h2,h3{font-family:var(--font-display);font-weight:700;line-height:1.1}
 h1{font-size:clamp(2.5rem,6vw,5rem);letter-spacing:-.03em}

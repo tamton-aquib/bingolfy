@@ -19,6 +19,6 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(gameHandler, "/game").setAllowedOrigins("*");
+        registry.addHandler(gameHandler, "/game").setAllowedOriginPatterns("http://localhost:5173", "https://bingolfy.tamton.dev");
     }
 }

@@ -3,17 +3,38 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 // biome-ignore lint/suspicious/noExplicitAny: webhook payloads are dynamic JSON
 type MessageHandler = (payload: any) => void;
 
+const MAX_QUEUE_SIZE = 50;
+
+interface QueuedMessage {
+  type: string;
+  data: Record<string, unknown>;
+}
+
 export function useWebSocket(url: string) {
   const wsRef = useRef<WebSocket | null>(null);
   const handlersRef = useRef<Map<string, Set<MessageHandler>>>(new Map());
   const [ready, setReady] = useState(false);
   const reconnectAttempt = useRef(0);
   const mountedRef = useRef(true);
+  const messageQueue = useRef<QueuedMessage[]>([]);
 
   useEffect(() => {
     mountedRef.current = true;
     let ws: WebSocket;
     let reconnectTimer: ReturnType<typeof setTimeout>;
+
+    function flushQueue() {
+      const queue = messageQueue.current;
+      messageQueue.current = [];
+      for (const msg of queue) {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: msg.type, ...msg.data }));
+        } else {
+          messageQueue.current = queue.slice(queue.indexOf(msg));
+          break;
+        }
+      }
+    }
 
     function connect() {
       ws = new WebSocket(url);
@@ -23,6 +44,7 @@ export function useWebSocket(url: string) {
         if (!mountedRef.current) { ws.close(); return; }
         setReady(true);
         reconnectAttempt.current = 0;
+        flushQueue();
       };
 
       ws.onmessage = (event) => {
@@ -56,6 +78,7 @@ export function useWebSocket(url: string) {
     return () => {
       mountedRef.current = false;
       clearTimeout(reconnectTimer);
+      messageQueue.current = [];
       ws.close();
     };
   }, [url]);
@@ -64,6 +87,11 @@ export function useWebSocket(url: string) {
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type, ...data }));
+    } else {
+      if (messageQueue.current.length >= MAX_QUEUE_SIZE) {
+        messageQueue.current.shift();
+      }
+      messageQueue.current.push({ type, data });
     }
   }, []);
 
