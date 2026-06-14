@@ -7,6 +7,7 @@ import Lobby from './components/Lobby';
 import WaitingRoom from './components/WaitingRoom';
 import GameSetup from './components/GameSetup';
 import Game from './components/Game';
+import Leaderboard from './components/Leaderboard';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useWebSocket } from './hooks/useWebSocket';
 import { auth } from "./firebase";
@@ -21,7 +22,7 @@ if (!socketUrl) {
     throw new Error("Build failed: VITE_SOCKET_URL is missing!");
 }
 
-type Screen = 'login' | 'lobby' | 'waiting' | 'setup' | 'game';
+type Screen = 'login' | 'lobby' | 'waiting' | 'setup' | 'game' | 'leaderboard';
 
 function App() {
     const [user] = useAuthState(auth);
@@ -37,6 +38,7 @@ function App() {
 
     const socket = useWebSocket(socketUrl);
     const apiUrl = socketUrl.replace(/^ws/, 'http').replace(/\/game$/, '') + '/api/rooms';
+    const leaderboardApiUrl = socketUrl.replace(/^ws/, 'http').replace(/\/game$/, '') + '/api/leaderboard';
 
     useEffect(() => {
         gridRef.current = grid;
@@ -48,7 +50,7 @@ function App() {
                 name: user?.displayName || anonUser || '',
                 email: user?.email || '',
                 photo: user?.photoURL || '',
-                uid: user?.uid || crypto.randomUUID(),
+                uid: user?.uid || '',
             });
             if (screen === 'login') setScreen('lobby');
         }
@@ -94,7 +96,7 @@ function App() {
     const wasEverReadyRef = useRef(false);
     useEffect(() => {
         if (socket.ready && !wasReadyRef.current && room && userDetails.name) {
-            socket.send("join_room", { room, name: userDetails.name });
+            socket.send("join_room", { room, name: userDetails.name, uid: userDetails.uid });
             if (grid) {
                 socket.send("request_state");
             }
@@ -105,7 +107,7 @@ function App() {
 
     const handleJoinRoom = useCallback((name: string) => {
         setRoom(name);
-        socket.send("join_room", { room: name, name: userDetails.name });
+        socket.send("join_room", { room: name, name: userDetails.name, uid: userDetails.uid });
         setPlayingUsers([]);
         setGrid(null);
         setCurrentPlayer('');
@@ -155,14 +157,18 @@ function App() {
     return (
         <ErrorBoundary>
             <>
-                <NavBar onSignOut={handleSignOut} signedIn={isSignedIn} />
+                <NavBar onSignOut={handleSignOut} signedIn={isSignedIn} onNavigateToLeaderboard={() => setScreen('leaderboard')} />
                 {!socket.ready && wasEverReadyRef.current && <div className="reconnect-banner">Reconnecting...</div>}
                 {errorMsg && <div className="error-banner" role="alert">{errorMsg}</div>}
                 <div className="screen-container">
                 {screen === 'login' && <Login setAnonUser={setAnonUser} />}
 
                 {screen === 'lobby' && (
-                    <Lobby onJoinRoom={handleJoinRoom} getApiUrl={apiUrl} />
+                    <Lobby onJoinRoom={handleJoinRoom} getApiUrl={apiUrl} leaderboardApiUrl={leaderboardApiUrl} onViewLeaderboard={() => setScreen('leaderboard')} />
+                )}
+
+                {screen === 'leaderboard' && (
+                    <Leaderboard apiUrl={leaderboardApiUrl} onBack={() => setScreen('lobby')} />
                 )}
 
                 {screen === 'waiting' && (

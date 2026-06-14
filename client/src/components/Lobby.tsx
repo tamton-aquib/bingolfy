@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import LeaderboardPanel from "./LeaderboardPanel";
 
 const PRESETS = [
     "bingo-basement",
@@ -17,6 +18,8 @@ interface RoomInfo {
 interface LobbyProps {
     onJoinRoom: (name: string) => void;
     getApiUrl: string;
+    leaderboardApiUrl: string;
+    onViewLeaderboard: () => void;
 }
 
 const RoomCard = ({ name, playerCount, maxPlayers, onJoin }: { name: string; playerCount?: number; maxPlayers: number; onJoin: () => void }) => (
@@ -42,7 +45,7 @@ const RoomCard = ({ name, playerCount, maxPlayers, onJoin }: { name: string; pla
     </div>
 );
 
-const Lobby = ({ onJoinRoom, getApiUrl }: LobbyProps) => {
+const Lobby = ({ onJoinRoom, getApiUrl, leaderboardApiUrl, onViewLeaderboard }: LobbyProps) => {
     const [rooms, setRooms] = useState<RoomInfo[]>([]);
     const [fetchError, setFetchError] = useState(false);
     const roomInputRef = useRef<HTMLInputElement>(null!);
@@ -92,6 +95,7 @@ const Lobby = ({ onJoinRoom, getApiUrl }: LobbyProps) => {
                     <button className="btn btn-primary" type="submit">JOIN</button>
                 </form>
             </div>
+            <LeaderboardPanel apiUrl={leaderboardApiUrl} onViewFull={onViewLeaderboard} />
             {fetchError && <p className="error-text" role="alert" style={{ marginTop: 'var(--space-md)' }}>Could not load rooms. Retrying...</p>}
             {rooms.filter(r => !presetSet.has(r.name)).length > 0 && (
                 <>

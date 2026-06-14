@@ -13,6 +13,8 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,10 +32,12 @@ public class GameHandler extends TextWebSocketHandler {
 
     private final ObjectMapper objectMapper;
     private final GameService gameService;
+    private final LeaderboardService leaderboardService;
 
     private final Map<String, Set<WebSocketSession>> roomSessions = new ConcurrentHashMap<>();
     private final Map<String, String> sessionRooms = new ConcurrentHashMap<>();
     private final Map<String, String> sessionUsers = new ConcurrentHashMap<>();
+    private final Map<String, String> sessionUid = new ConcurrentHashMap<>();
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -84,6 +88,7 @@ public class GameHandler extends TextWebSocketHandler {
 
         String room = roomNode.asText().trim();
         String name = nameNode.asText().trim();
+        String uid = json.has("uid") && json.get("uid").isTextual() ? json.get("uid").asText().trim() : null;
 
         if (room.isEmpty() || room.length() > 50 || name.isEmpty() || name.length() > 30) {
             sendToSession(session, "error", "Invalid room or name length");
@@ -99,7 +104,7 @@ public class GameHandler extends TextWebSocketHandler {
             handleLeaveRoom(session);
         }
 
-        var users = gameService.joinRoom(room, name);
+        var users = gameService.joinRoom(room, name, uid);
         if (users == null) {
             sendToSession(session, "error", "Room is full");
             return;
@@ -108,6 +113,9 @@ public class GameHandler extends TextWebSocketHandler {
         roomSessions.computeIfAbsent(room, k -> ConcurrentHashMap.newKeySet()).add(session);
         sessionRooms.put(session.getId(), room);
         sessionUsers.put(session.getId(), name);
+        if (uid != null && !uid.isEmpty()) {
+            sessionUid.put(session.getId(), uid);
+        }
 
         broadcastToRoom(room, "user_joined", users);
     }
@@ -164,6 +172,21 @@ public class GameHandler extends TextWebSocketHandler {
 
         int lines = gameService.tryClaimWin(room, name);
         if (lines >= 5) {
+            String winnerUid = sessionUid.get(session.getId());
+            var users = gameService.getUsers(room);
+            List<String> allUids = new ArrayList<>();
+            List<String> allNames = new ArrayList<>();
+            for (var u : users) {
+                allUids.add(u.getUid());
+                allNames.add(u.getName());
+            }
+            if (winnerUid != null && !winnerUid.isEmpty()) {
+                try {
+                    leaderboardService.recordGame(winnerUid, name, allUids, allNames);
+                } catch (Exception e) {
+                    log.error("Failed to record leaderboard stats: {}", e.getMessage());
+                }
+            }
             broadcastToRoom(room, "game_over", Map.of("user", name));
         } else if (lines >= 0) {
             sendToSession(session, "win_rejected", "Not enough lines");
@@ -185,6 +208,7 @@ public class GameHandler extends TextWebSocketHandler {
     private void handleLeaveRoom(WebSocketSession session) {
         String room = sessionRooms.remove(session.getId());
         String name = sessionUsers.remove(session.getId());
+        sessionUid.remove(session.getId());
         if (room != null) {
             Set<WebSocketSession> roomSet = roomSessions.get(room);
             if (roomSet != null) {

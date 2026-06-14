@@ -305,3 +305,67 @@ Excludes `node_modules`, `build`, `.git`, `.env`, `*.md`, IDE files, Docker file
 | `sb-server/.../GameHandler.java` | uses atomic methods, reset_game handler |
 | `sb-server/pom.xml` | removed unused dependency |
 | `sb-server/.../TestController.java` | removed debug println |
+
+---
+
+# Leaderboard System
+
+## Scope
+
+SQLite + JPA persistent leaderboard, Firebase-auth-only tracking, top-5 panel in lobby + full leaderboard screen, neobrutalist design alignment.
+
+## Server
+
+**New files (4):**
+- `entity/LeaderboardEntry.java` — JPA entity with uid (PK), displayName, wins, gamesPlayed, lastPlayedAt
+- `repository/LeaderboardRepository.java` — JpaRepository with `findTop5ByOrderByWinsDesc`
+- `service/LeaderboardService.java` — `recordGame(winnerUid, winnerName, allUids, allNames)` upserts entries for all players in a finished game. `getTopEntries(limit)` returns sorted list.
+- `controller/LeaderboardController.java` — `GET /api/leaderboard?limit=10`
+
+**Modified files (5):**
+- `pom.xml` — added spring-boot-starter-data-jpa + sqlite-jdbc + hibernate-community-dialects
+- `application.properties` — SQLite datasource (jdbc:sqlite:./data/bingolfy.db), JPA ddl-auto=update, open-in-view=false
+- `entity/User.java` — added `uid` field (nullable String), constructor accepts `String uid`
+- `service/GameService.java` — `joinRoom(room, name, uid)` accepts uid parameter
+- `service/GameHandler.java` — injects LeaderboardService; handleJoinRoom extracts uid from JSON, stores in sessionUid map; handleUserWon collects all player UIDs from room and calls leaderboardService.recordGame; handleLeaveRoom cleans up sessionUid
+
+## Client
+
+**New files (2):**
+- `components/LeaderboardPanel.tsx` — top-5 widget for lobby, shows rank + name + wins + win rate, "VIEW FULL LEADERBOARD" button
+- `components/Leaderboard.tsx` — full leaderboard screen, table with rank, name, wins, games, win %
+
+**Modified files (4):**
+- `App.tsx` — added `'leaderboard'` to Screen union, `leaderboardApiUrl` constant, uid only from Firebase auth (empty for anonymous), NavBar and Lobby wired with navigation callbacks
+- `components/NavBar.tsx` — added LEADERBOARD button in nav-actions
+- `components/Lobby.tsx` — renders LeaderboardPanel with leaderboardApiUrl and onViewLeaderboard
+- `index.css` — leaderboard styles (`.leaderboard-panel`, `.leaderboard-row`, `.leaderboard-table`, responsive grid layout)
+
+## Design
+
+- Top-5 panel uses same surface/border/shadow pattern as `.create-room-section`
+- Rows use `.game-player`-inspired flex layout with rank badge, name, and stats
+- #1 row has accent-colored left border highlight
+- Full table uses CSS grid with 5 columns, accent highlight on top row
+- All fonts/colors use existing design tokens (`--font-display`, `--font-body`, `--surface`, `--border`, `--accent`, `--success`, `--muted`)
+- Responsive: table collapses to tighter columns at 768px
+
+## Files Summary (15 total)
+
+| File | Action |
+|------|--------|
+| `sb-server/entity/LeaderboardEntry.java` | New |
+| `sb-server/repository/LeaderboardRepository.java` | New |
+| `sb-server/service/LeaderboardService.java` | New |
+| `sb-server/controller/LeaderboardController.java` | New |
+| `sb-server/pom.xml` | Modified |
+| `sb-server/application.properties` | Modified |
+| `sb-server/entity/User.java` | Modified |
+| `sb-server/service/GameService.java` | Modified |
+| `sb-server/service/GameHandler.java` | Modified |
+| `client/src/components/LeaderboardPanel.tsx` | New |
+| `client/src/components/Leaderboard.tsx` | New |
+| `client/src/App.tsx` | Modified |
+| `client/src/components/NavBar.tsx` | Modified |
+| `client/src/components/Lobby.tsx` | Modified |
+| `client/src/index.css` | Modified |

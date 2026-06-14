@@ -22,7 +22,7 @@ public class GameService {
     private final RoomLockManager lockManager = new RoomLockManager();
     private final Random random = new Random();
 
-    public List<User> joinRoom(String room, String name) {
+    public List<User> joinRoom(String room, String name, String uid) {
         ReentrantLock lock = lockManager.getLock(room);
         lock.lock();
         try {
@@ -33,7 +33,7 @@ public class GameService {
                     .orElse(null);
             if (existing == null) {
                 if (users.size() >= MAX_PLAYERS) return null;
-                users.add(new User(name));
+                users.add(new User(name, uid));
             }
             return List.copyOf(users);
         } finally {
