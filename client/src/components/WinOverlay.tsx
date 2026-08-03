@@ -4,10 +4,11 @@ import { useConfetti } from "../hooks/useConfetti";
 interface WinOverlayProps {
     winnerName: string;
     onGoHome: () => void;
+    onPlayAgain: () => void;
     visible: boolean;
 }
 
-const WinOverlay = ({ winnerName, onGoHome, visible }: WinOverlayProps) => {
+const WinOverlay = ({ winnerName, onGoHome, onPlayAgain, visible }: WinOverlayProps) => {
     const { start, stop } = useConfetti();
     const cardRef = useRef<HTMLDivElement>(null);
 
@@ -74,7 +75,8 @@ const WinOverlay = ({ winnerName, onGoHome, visible }: WinOverlayProps) => {
                         ))}
                     </div>
                     <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'center' }}>
-                        <button className="btn btn-primary btn-lg" onClick={onGoHome}>GO HOME</button>
+                        <button className="btn btn-primary btn-lg" onClick={onPlayAgain}>PLAY AGAIN</button>
+                        <button className="btn btn-lg" onClick={onGoHome}>GO HOME</button>
                     </div>
                 </div>
             </div>

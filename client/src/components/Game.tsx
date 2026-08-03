@@ -47,6 +47,7 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
     const [lines, setLines] = useState(0);
     const [wonUser, setWonUser] = useState<string | null>(null);
     const [bingoReady, setBingoReady] = useState(false);
+    const [notice, setNotice] = useState<string | null>(null);
     const isMyTurn = currentPlayer === myName;
 
     useEffect(() => {
@@ -77,16 +78,25 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
             }
         });
 
-        return () => { unsubFlush(); unsubGameOver(); unsubWinRejected(); unsubGameState(); };
-    }, []);
+        const unsubGameReset = socket.subscribe("game_reset", () => {
+            setMarked(new Set());
+            setLines(0);
+            setBingoReady(false);
+            setWonUser(null);
+            setNotice(null);
+        });
 
-    const passTurn = useCallback(() => {
-        const idx = playingUsers.findIndex(p => p.name === currentPlayer);
-        const nextPlayer = playingUsers[(idx + 1) % playingUsers.length];
-        if (nextPlayer) {
-            socket.send("set_next_player", { user: nextPlayer.name, room });
-        }
-    }, [playingUsers, currentPlayer, socket, room]);
+        const unsubTurnTimeout = socket.subscribe("turn_timeout", (data: unknown) => {
+            const d = data as { nextPlayer: string };
+            setNotice(`${d.nextPlayer} took too long — turn passed`);
+            setTimeout(() => setNotice(null), 4000);
+        });
+
+        return () => {
+            unsubFlush(); unsubGameOver(); unsubWinRejected();
+            unsubGameState(); unsubGameReset(); unsubTurnTimeout();
+        };
+    }, []);
 
     const handleTileClick = useCallback((n: number) => {
         if (!isMyTurn || marked.has(n) || wonUser) return;
@@ -97,14 +107,17 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
         setLines(l);
         socket.send("tile_clicked", { tiles: [n], room });
         if (l >= 5) { setBingoReady(true); }
-        passTurn();
-    }, [isMyTurn, marked, wonUser, grid, socket, room, passTurn]);
+    }, [isMyTurn, marked, wonUser, grid, socket, room]);
 
     const handleCallBingo = useCallback(() => {
         if (!bingoReady || wonUser) return;
         socket.send("user_won", { user: myName, room });
         setWonUser(myName);
     }, [bingoReady, wonUser, socket, myName, room]);
+
+    const handlePlayAgain = useCallback(() => {
+        socket.send("reset_game", { room });
+    }, [socket, room]);
 
     const currentIdx = playingUsers.findIndex(p => p.name === currentPlayer);
     const flat = grid.flat();
@@ -122,6 +135,7 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
                             {currentPlayer}'s Turn
                         </div>
                     )}
+                    {notice && <div className="error-banner" role="status">{notice}</div>}
                     <div className="game-grid" role="grid" aria-label="Game board">
                         {flat.map((n, i) => {
                             const m = marked.has(n);
@@ -177,6 +191,7 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
             <WinOverlay
                 winnerName={wonUser || ''}
                 onGoHome={onGoHome}
+                onPlayAgain={handlePlayAgain}
                 visible={!!wonUser}
             />
         </>

@@ -18,6 +18,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+
+import org.springframework.beans.factory.annotation.Value;
 
 
 @Component
@@ -27,17 +35,51 @@ public class GameHandler extends TextWebSocketHandler {
     private static final Logger log = LoggerFactory.getLogger(GameHandler.class);
     private static final Set<String> VALID_TYPES = Set.of(
             "join_room", "user_ready", "tile_clicked", "user_won",
-            "set_next_player", "leave_room", "setup_complete", "request_state", "reset_game"
+            "leave_room", "setup_complete", "request_state", "reset_game"
     );
 
     private final ObjectMapper objectMapper;
     private final GameService gameService;
     private final LeaderboardService leaderboardService;
 
+    @Value("${bingo.turn-timeout:60}")
+    private long turnTimeoutSeconds;
+
+    private final ScheduledExecutorService turnChecker =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "turn-timeout-checker");
+                t.setDaemon(true);
+                return t;
+            });
+
     private final Map<String, Set<WebSocketSession>> roomSessions = new ConcurrentHashMap<>();
     private final Map<String, String> sessionRooms = new ConcurrentHashMap<>();
     private final Map<String, String> sessionUsers = new ConcurrentHashMap<>();
     private final Map<String, String> sessionUid = new ConcurrentHashMap<>();
+
+    @PostConstruct
+    public void startTurnChecker() {
+        turnChecker.scheduleAtFixedRate(this::checkTurnTimeouts, 5, 2, TimeUnit.SECONDS);
+    }
+
+    @PreDestroy
+    public void stopTurnChecker() {
+        turnChecker.shutdownNow();
+    }
+
+    private void checkTurnTimeouts() {
+        for (String room : gameService.getActiveRooms()) {
+            try {
+                String next = gameService.checkTurnTimeout(room, turnTimeoutSeconds * 1000);
+                if (next != null) {
+                    broadcastToRoom(room, "turn_timeout", Map.of("nextPlayer", next));
+                    broadcastToRoom(room, "next_player", next);
+                }
+            } catch (Exception e) {
+                log.error("Turn timeout check failed for room {}", room, e);
+            }
+        }
+    }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -64,7 +106,6 @@ public class GameHandler extends TextWebSocketHandler {
                 case "user_ready" -> handleUserReady(session);
                 case "tile_clicked" -> handleTileClicked(session, jsonNode);
                 case "user_won" -> handleUserWon(session);
-                case "set_next_player" -> handleSetNextPlayer(session, jsonNode);
                 case "leave_room" -> handleLeaveRoom(session);
                 case "setup_complete" -> handleSetupComplete(session, jsonNode);
                 case "request_state" -> handleRequestState(session);
@@ -163,6 +204,11 @@ public class GameHandler extends TextWebSocketHandler {
 
         Set<Integer> called = gameService.getCalledNumbers(room);
         broadcastToRoom(room, "flush", called);
+
+        String next = gameService.advanceToNextPlayer(room);
+        if (next != null) {
+            broadcastToRoom(room, "next_player", next);
+        }
     }
 
     private void handleUserWon(WebSocketSession session) throws Exception {
@@ -193,18 +239,6 @@ public class GameHandler extends TextWebSocketHandler {
         }
     }
 
-    private void handleSetNextPlayer(WebSocketSession session, JsonNode json) throws Exception {
-        String room = sessionRooms.get(session.getId());
-        if (room == null) return;
-
-        var userNode = json.get("user");
-        if (userNode == null || !userNode.isTextual()) return;
-
-        String nextPlayer = userNode.asText();
-        gameService.advanceTurn(room, nextPlayer);
-        broadcastToRoom(room, "next_player", nextPlayer);
-    }
-
     private void handleLeaveRoom(WebSocketSession session) {
         String room = sessionRooms.remove(session.getId());
         String name = sessionUsers.remove(session.getId());
@@ -218,12 +252,20 @@ public class GameHandler extends TextWebSocketHandler {
                 }
             }
             if (name != null) {
-                gameService.removeUser(room, name);
-            }
-            try {
-                broadcastToRoom(room, "user_joined", gameService.getUsers(room));
-            } catch (Exception e) {
-                log.error("Error broadcasting after leave: {}", e.getMessage());
+                var outcome = gameService.removeUser(room, name);
+                try {
+                    if (outcome.aborted()) {
+                        broadcastToRoom(room, "game_aborted", Map.of());
+                    } else {
+                        broadcastToRoom(room, "user_left", Map.of("user", name));
+                        if (outcome.nextPlayer() != null) {
+                            broadcastToRoom(room, "next_player", outcome.nextPlayer());
+                        }
+                        broadcastToRoom(room, "user_joined", outcome.users());
+                    }
+                } catch (Exception e) {
+                    log.error("Error broadcasting after leave: {}", e.getMessage());
+                }
             }
         }
     }
@@ -288,7 +330,8 @@ public class GameHandler extends TextWebSocketHandler {
         String room = sessionRooms.get(session.getId());
         if (room == null) return;
         gameService.resetGameForRoom(room);
-        broadcastToRoom(room, "game_reset", Map.of());
+        String first = gameService.getCurrentPlayer(room);
+        broadcastToRoom(room, "game_reset", Map.of("firstPlayer", first));
     }
 
     private void broadcastToRoom(String room, String type, Object payload) throws Exception {

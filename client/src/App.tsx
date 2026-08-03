@@ -82,13 +82,32 @@ function App() {
                 setScreen('game');
             }
         });
+        const unsubGameReset = socket.subscribe("game_reset", (data: unknown) => {
+            const d = data as { firstPlayer: string };
+            if (d.firstPlayer) setCurrentPlayer(d.firstPlayer);
+        });
+        const unsubUserLeft = socket.subscribe("user_left", (data: unknown) => {
+            const d = data as { user: string };
+            setErrorMsg(`${d.user} left the game`);
+            setTimeout(() => setErrorMsg(null), 4000);
+        });
+        const unsubAborted = socket.subscribe("game_aborted", () => {
+            setErrorMsg('Game ended — not enough players');
+            setTimeout(() => setErrorMsg(null), 4000);
+            setRoom('');
+            setGrid(null);
+            setPlayingUsers([]);
+            setCurrentPlayer('');
+            setScreen('lobby');
+        });
         const unsubError = socket.subscribe("error", (data: unknown) => {
             setErrorMsg(data as string);
             setTimeout(() => setErrorMsg(null), 4000);
         });
         return () => {
             unsubJoined(); unsubNext(); unsubReady();
-            unsubStarted(); unsubGameState(); unsubError();
+            unsubStarted(); unsubGameState(); unsubGameReset();
+            unsubUserLeft(); unsubAborted(); unsubError();
         };
     }, [socket]);
 

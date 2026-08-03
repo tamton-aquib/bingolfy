@@ -19,8 +19,11 @@ public class GameService {
     private final Map<String, Set<Integer>> calledNumbers = new ConcurrentHashMap<>();
     private final Map<String, String> currentPlayer = new ConcurrentHashMap<>();
     private final Map<String, String> gamePhase = new ConcurrentHashMap<>();
+    private final Map<String, Long> lastMoveAt = new ConcurrentHashMap<>();
     private final RoomLockManager lockManager = new RoomLockManager();
     private final Random random = new Random();
+
+    public record LeaveOutcome(List<User> users, boolean aborted, String nextPlayer) {}
 
     public List<User> joinRoom(String room, String name, String uid) {
         ReentrantLock lock = lockManager.getLock(room);
@@ -94,20 +97,30 @@ public class GameService {
         }
     }
 
-    public void removeUser(String room, String name) {
+    public LeaveOutcome removeUser(String room, String name) {
         ReentrantLock lock = lockManager.getLock(room);
         lock.lock();
         try {
             List<User> users = rooms.get(room);
-            if (users != null) {
-                users.removeIf(u -> u.getName().equals(name));
-                if (users.isEmpty()) {
-                    rooms.remove(room);
-                    setupComplete.remove(room);
-                    cleanupRoomStateInternal(room);
-                    lockManager.removeLock(room);
+            if (users == null) return new LeaveOutcome(List.of(), false, null);
+            users.removeIf(u -> u.getName().equals(name));
+            if (users.isEmpty()) {
+                rooms.remove(room);
+                setupComplete.remove(room);
+                cleanupRoomStateInternal(room);
+                lockManager.removeLock(room);
+                return new LeaveOutcome(List.of(), false, null);
+            }
+            if ("PLAYING".equals(gamePhase.get(room))) {
+                if (users.size() < 2) {
+                    gamePhase.put(room, "FINISHED");
+                    return new LeaveOutcome(List.copyOf(users), true, null);
+                }
+                if (name.equals(currentPlayer.get(room))) {
+                    return new LeaveOutcome(List.copyOf(users), false, advanceToNextPlayerInternal(room));
                 }
             }
+            return new LeaveOutcome(List.copyOf(users), false, null);
         } finally {
             lock.unlock();
         }
@@ -146,6 +159,7 @@ public class GameService {
                 if (t < 1 || t > 25) return false;
                 if (!called.add(t)) return false;
             }
+            lastMoveAt.put(room, System.currentTimeMillis());
             return true;
         } finally {
             lock.unlock();
@@ -245,16 +259,53 @@ public class GameService {
         }
     }
 
-    public void advanceTurn(String room, String nextPlayer) {
+    public String advanceToNextPlayer(String room) {
         ReentrantLock lock = lockManager.getLock(room);
         lock.lock();
         try {
-            if ("PLAYING".equals(gamePhase.get(room))) {
-                currentPlayer.put(room, nextPlayer);
-            }
+            return advanceToNextPlayerInternal(room);
         } finally {
             lock.unlock();
         }
+    }
+
+    private String advanceToNextPlayerInternal(String room) {
+        if (!"PLAYING".equals(gamePhase.get(room))) return null;
+        List<User> users = rooms.get(room);
+        if (users == null || users.isEmpty()) return null;
+        String cur = currentPlayer.get(room);
+        int idx = 0;
+        for (int i = 0; i < users.size(); i++) {
+            if (users.get(i).getName().equals(cur)) {
+                idx = i;
+                break;
+            }
+        }
+        String next = users.get((idx + 1) % users.size()).getName();
+        currentPlayer.put(room, next);
+        lastMoveAt.put(room, System.currentTimeMillis());
+        return next;
+    }
+
+    public String checkTurnTimeout(String room, long timeoutMillis) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            if (!"PLAYING".equals(gamePhase.get(room))) return null;
+            Long last = lastMoveAt.get(room);
+            if (last == null || System.currentTimeMillis() - last < timeoutMillis) return null;
+            return advanceToNextPlayerInternal(room);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public List<String> getActiveRooms() {
+        List<String> active = new ArrayList<>();
+        for (var e : gamePhase.entrySet()) {
+            if ("PLAYING".equals(e.getValue())) active.add(e.getKey());
+        }
+        return active;
     }
 
     public void resetGameForRoom(String room) {
@@ -262,11 +313,11 @@ public class GameService {
         lock.lock();
         try {
             calledNumbers.remove(room);
-            playerGrids.remove(room);
+            lastMoveAt.put(room, System.currentTimeMillis());
             gamePhase.put(room, "PLAYING");
             List<User> users = rooms.get(room);
             if (users != null && !users.isEmpty()) {
-                currentPlayer.put(room, users.get(0).getName());
+                currentPlayer.put(room, users.get(random.nextInt(users.size())).getName());
             }
         } finally {
             lock.unlock();
@@ -311,5 +362,6 @@ public class GameService {
         calledNumbers.remove(room);
         currentPlayer.remove(room);
         gamePhase.remove(room);
+        lastMoveAt.remove(room);
     }
 }
