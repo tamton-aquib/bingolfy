@@ -36,10 +36,12 @@ Run client on :5173, sb-server on :8080. Client reads `VITE_SOCKET_URL` from `.e
 Raw WebSocket (no Socket.IO). Message format:
 - Send: `JSON.stringify({ type: "...", field1: val1, ... })`
 - Receive: `{"type": "...", "payload": ...}`
-- Client → Server: join_room, user_ready, tile_clicked, user_won, set_next_player, leave_room, setup_complete
-- Server → Client: user_joined, flush, next_player, game_over, all_ready, game_started
+- Client → Server: join_room, user_ready, tile_clicked, user_won, leave_room, setup_complete, request_state, reset_game
+- Server → Client: user_joined, flush, tile_called, next_player, turn_timeout, user_left, game_aborted, game_over, game_reset, all_ready, game_started
 - `all_ready` triggers Waiting Room → Setup transition
 - `game_started` triggers Setup → Game transition (sent when all players complete setup)
+- `reset_game` (Play Again) keeps player grids and picks a new random first player
+- Turn rotation is server-side: server advances after each valid `tile_clicked` and on AFK timeout (`bingo.turn-timeout`)
 
 ## Screens (screen state machine in App.tsx)
 
@@ -67,7 +69,7 @@ Raw WebSocket (no Socket.IO). Message format:
 ## Gotchas
 
 - **Client build output** is `build/` (not default `dist/`). Both dirs gitignored.
-- **No client tests** exist.
+- **Client tests** exist via vitest (`npm test`); server tests via `./mvnw test`.
 - **CI**: `.github/workflows/docker-publish.yml` on push to `main` — builds Docker for `sb-server/` (Spring Boot) and `client/`, pushes to GHCR. Client build passes `VITE_SOCKET_URL=wss://bingolfy.tamton.dev`.
 - **Firebase config** (`client/src/firebase.ts`) is intentionally public — security enforced via Firebase console rules.
 - **Tile identity** is by NUMBER (1-25), not grid position. Each player has a unique grid arrangement. Line checking compares the set of called numbers against each player's grid.
