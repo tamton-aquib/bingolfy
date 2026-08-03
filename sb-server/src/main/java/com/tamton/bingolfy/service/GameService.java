@@ -20,6 +20,7 @@ public class GameService {
     private final Map<String, String> currentPlayer = new ConcurrentHashMap<>();
     private final Map<String, String> gamePhase = new ConcurrentHashMap<>();
     private final Map<String, Long> lastMoveAt = new ConcurrentHashMap<>();
+    private final Map<String, String> winner = new ConcurrentHashMap<>();
     private final RoomLockManager lockManager = new RoomLockManager();
     private final Random random = new Random();
 
@@ -255,6 +256,21 @@ public class GameService {
         return gamePhase.get(room);
     }
 
+    public int[][] getGrid(String room, String name) {
+        ReentrantLock lock = lockManager.getLock(room);
+        lock.lock();
+        try {
+            Map<String, int[][]> grids = playerGrids.get(room);
+            return grids == null ? null : grids.get(name);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public String getWinner(String room) {
+        return winner.get(room);
+    }
+
     // --- Phase 2: Atomic compound operations ---
 
     public boolean isPlayersTurn(String room, String name) {
@@ -279,6 +295,7 @@ public class GameService {
             int lines = countLinesInternal(room, name);
             if (lines >= 5) {
                 gamePhase.put(room, "FINISHED");
+                winner.put(room, name);
             }
             return lines;
         } finally {
@@ -341,6 +358,7 @@ public class GameService {
         try {
             calledNumbers.remove(room);
             lastMoveAt.put(room, System.currentTimeMillis());
+            winner.remove(room);
             gamePhase.put(room, "PLAYING");
             List<User> users = rooms.get(room);
             if (users != null && !users.isEmpty()) {
@@ -390,5 +408,6 @@ public class GameService {
         currentPlayer.remove(room);
         gamePhase.remove(room);
         lastMoveAt.remove(room);
+        winner.remove(room);
     }
 }

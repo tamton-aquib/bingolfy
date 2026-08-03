@@ -14,6 +14,7 @@ interface GameProps {
     myName: string;
     playingUsers: Player[];
     currentPlayer: string;
+    initialWinner: string | null;
     socket: {
         send: (type: string, data?: Record<string, unknown>) => void;
         subscribe: (type: string, handler: (payload: unknown) => void) => () => void;
@@ -21,10 +22,10 @@ interface GameProps {
     onGoHome: () => void;
 }
 
-const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHome }: GameProps) => {
+const Game = ({ room, grid, myName, playingUsers, currentPlayer, initialWinner, socket, onGoHome }: GameProps) => {
     const [marked, setMarked] = useState<Set<number>>(new Set());
     const [lines, setLines] = useState(0);
-    const [wonUser, setWonUser] = useState<string | null>(null);
+    const [wonUser, setWonUser] = useState<string | null>(initialWinner || null);
     const [bingoReady, setBingoReady] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
     const [recentTiles, setRecentTiles] = useState<number[]>([]);
@@ -84,7 +85,7 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
             unsubFlush(); unsubGameOver(); unsubWinRejected();
             unsubGameState(); unsubGameReset(); unsubTileCalled(); unsubTurnTimeout();
         };
-    }, []);
+    }, [grid, socket]);
 
     const handleTileClick = useCallback((n: number) => {
         if (!isMyTurn || marked.has(n) || wonUser) return;
@@ -120,7 +121,7 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
                         </div>
                     ) : (
                         <div className="game-turn-banner other-turn">
-                            {currentPlayer}'s Turn
+                            {currentPlayer}&apos;s Turn
                         </div>
                     )}
                     {notice && <div className="error-banner" role="status">{notice}</div>}

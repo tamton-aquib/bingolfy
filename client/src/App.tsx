@@ -35,13 +35,21 @@ type Screen = 'login' | 'lobby' | 'waiting' | 'setup' | 'game' | 'leaderboard';
 
 function App() {
     const [user] = useAuthState(auth);
-    const [anonUser, setAnonUser] = useState<string | null>(null);
+    const [anonUser, setAnonUser] = useState<string | null>(() => localStorage.getItem('bingolfy-anon-name'));
     const [userDetails, setUserDetails] = useState({ name: '', email: '', photo: '', uid: '' });
     const [screen, setScreen] = useState<Screen>('login');
-    const [room, setRoom] = useState('');
-    const [grid, setGrid] = useState<number[][] | null>(null);
+    const [room, setRoom] = useState(() => localStorage.getItem('bingolfy-room') || '');
+    const [grid, setGrid] = useState<number[][] | null>(() => {
+        try {
+            const raw = localStorage.getItem('bingolfy-grid');
+            return raw ? JSON.parse(raw) as number[][] : null;
+        } catch {
+            return null;
+        }
+    });
     const [playingUsers, setPlayingUsers] = useState<Player[]>([]);
     const [currentPlayer, setCurrentPlayer] = useState('');
+    const [winner, setWinner] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const gridRef = useRef<number[][] | null>(null);
 
@@ -54,6 +62,21 @@ function App() {
     }, [grid]);
 
     useEffect(() => {
+        if (anonUser) localStorage.setItem('bingolfy-anon-name', anonUser);
+        else localStorage.removeItem('bingolfy-anon-name');
+    }, [anonUser]);
+
+    useEffect(() => {
+        if (room) localStorage.setItem('bingolfy-room', room);
+        else localStorage.removeItem('bingolfy-room');
+    }, [room]);
+
+    useEffect(() => {
+        if (grid) localStorage.setItem('bingolfy-grid', JSON.stringify(grid));
+        else localStorage.removeItem('bingolfy-grid');
+    }, [grid]);
+
+    useEffect(() => {
         if (user || anonUser) {
             setUserDetails({
                 name: user?.displayName || anonUser || '',
@@ -63,7 +86,7 @@ function App() {
             });
             if (screen === 'login') setScreen('lobby');
         }
-    }, [user, anonUser]);
+    }, [user, anonUser, screen]);
 
     useEffect(() => {
         const unsubJoined = socket.subscribe("user_joined", (data: unknown) => {
@@ -83,17 +106,30 @@ function App() {
             setScreen('game');
         });
         const unsubGameState = socket.subscribe("game_state", (data: unknown) => {
-            const d = data as { phase: string; calledNumbers: number[]; currentPlayer: string; lines: number };
+            const d = data as { phase: string; calledNumbers: number[]; currentPlayer: string; lines: number; grid?: number[][]; winner?: string };
             if (d.currentPlayer) setCurrentPlayer(d.currentPlayer);
+            if (d.grid && d.grid.length > 0) {
+                setGrid(d.grid);
+                gridRef.current = d.grid;
+            }
+            if (d.winner) setWinner(d.winner);
             if (d.phase === 'PLAYING' && gridRef.current) {
                 setScreen('game');
             } else if (d.phase === 'FINISHED') {
                 setScreen('game');
+            } else if (d.phase === 'SETUP') {
+                setScreen('setup');
+            } else if (d.phase === 'WAITING') {
+                setScreen('waiting');
             }
+        });
+        const unsubGameOver = socket.subscribe("game_over", (data: unknown) => {
+            setWinner((data as Record<string, string>).user);
         });
         const unsubGameReset = socket.subscribe("game_reset", (data: unknown) => {
             const d = data as { firstPlayer: string };
             if (d.firstPlayer) setCurrentPlayer(d.firstPlayer);
+            setWinner(null);
         });
         const unsubUserLeft = socket.subscribe("user_left", (data: unknown) => {
             const d = data as { user: string };
@@ -121,23 +157,23 @@ function App() {
         });
         return () => {
             unsubJoined(); unsubNext(); unsubReady();
-            unsubStarted(); unsubGameState(); unsubGameReset();
+            unsubStarted(); unsubGameState(); unsubGameOver(); unsubGameReset();
             unsubUserLeft(); unsubAborted(); unsubError();
         };
     }, [socket]);
 
+    const [inviteRoom, setInviteRoom] = useState(() => new URLSearchParams(window.location.search).get('room') || '');
+
     const wasReadyRef = useRef(false);
     const wasEverReadyRef = useRef(false);
     useEffect(() => {
-        if (socket.ready && !wasReadyRef.current && room && userDetails.name) {
+        if (socket.ready && !wasReadyRef.current && room && userDetails.name && !inviteRoom) {
             socket.send("join_room", { room, name: userDetails.name, uid: userDetails.uid });
-            if (grid) {
-                socket.send("request_state");
-            }
+            socket.send("request_state");
         }
         if (socket.ready) wasEverReadyRef.current = true;
         wasReadyRef.current = socket.ready;
-    }, [socket.ready, room, userDetails.name, grid]);
+    }, [socket.ready, room, userDetails.name, userDetails.uid, socket, inviteRoom]);
 
     const handleJoinRoom = useCallback((name: string) => {
         setRoom(name);
@@ -145,10 +181,9 @@ function App() {
         setPlayingUsers([]);
         setGrid(null);
         setCurrentPlayer('');
+        setWinner(null);
         setScreen('waiting');
-    }, [socket, userDetails.name]);
-
-    const [inviteRoom, setInviteRoom] = useState(() => new URLSearchParams(window.location.search).get('room') || '');
+    }, [socket, userDetails.name, userDetails.uid]);
 
     useEffect(() => {
         if (inviteRoom && socket.ready && userDetails.name && screen === 'lobby') {
@@ -240,6 +275,7 @@ function App() {
                         myName={userDetails.name}
                         playingUsers={playingUsers}
                         currentPlayer={currentPlayer}
+                        initialWinner={winner}
                         socket={socket}
                         onGoHome={handleGoHome}
                     />

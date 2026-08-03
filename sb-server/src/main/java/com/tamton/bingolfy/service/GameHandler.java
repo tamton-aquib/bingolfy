@@ -318,12 +318,15 @@ public class GameHandler extends TextWebSocketHandler {
         Set<Integer> called = gameService.getCalledNumbers(room);
         String current = gameService.getCurrentPlayer(room);
         int lines = gameService.countLines(room, name);
+        int[][] grid = gameService.getGrid(room, name);
 
         sendToSession(session, "game_state", Map.of(
                 "phase", phase != null ? phase : "WAITING",
                 "calledNumbers", called,
                 "currentPlayer", current != null ? current : "",
-                "lines", lines
+                "lines", lines,
+                "grid", grid != null ? grid : new int[0][0],
+                "winner", gameService.getWinner(room)
         ));
     }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 
 // biome-ignore lint/suspicious/noExplicitAny: webhook payloads are dynamic JSON
 type MessageHandler = (payload: any) => void;
@@ -103,5 +103,5 @@ export function useWebSocket(url: string) {
     return () => { handlersRef.current.get(type)?.delete(handler); };
   }, []);
 
-  return { send, subscribe, ready };
+  return useMemo(() => ({ send, subscribe, ready }), [send, subscribe, ready]);
 }

@@ -39,7 +39,7 @@ const GameSetup = ({ room, playerCount, onContinue }: GameSetupProps) => {
             <div className="setup-grid-area">
                 <h2>YOUR GRID</h2>
                 <p style={{ fontSize: '.75rem', color: 'var(--muted)', marginBottom: 'var(--space-lg)', textTransform: 'uppercase' }}>
-                    Shuffle until you're happy, then continue.
+                    Shuffle until you&apos;re happy, then continue.
                 </p>
                 <div className="grid-5x5" role="grid" aria-label="Your bingo grid">
                     {flat.map(n => (

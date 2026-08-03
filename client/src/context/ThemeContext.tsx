@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useState, useEffect, type ReactNode } from 'react';
 
 type Theme = 'dark' | 'light';
 
@@ -7,8 +7,7 @@ interface ThemeContextType {
   toggleTheme: () => void;
 }
 
-const ThemeContext = createContext<ThemeContextType>({ theme: 'light', toggleTheme: () => {} });
-
+export const ThemeContext = createContext<ThemeContextType>({ theme: 'light', toggleTheme: () => {} });
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
     const stored = localStorage.getItem('theme');
@@ -30,4 +29,3 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export const useTheme = () => useContext(ThemeContext);
