@@ -16,6 +16,7 @@ interface WaitingRoomProps {
 const WaitingRoom = ({ room, players, myName, onReady, onLeave }: WaitingRoomProps) => {
     const me = players.find(p => p.name === myName);
     const [iAmReady, setIAmReady] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         setIAmReady(false);
@@ -29,6 +30,13 @@ const WaitingRoom = ({ room, players, myName, onReady, onLeave }: WaitingRoomPro
         setIAmReady(r => !r);
         onReady();
     }, [onReady]);
+
+    const handleCopyInvite = useCallback(() => {
+        const link = `${window.location.origin}?room=${encodeURIComponent(room)}`;
+        navigator.clipboard.writeText(link)
+            .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })
+            .catch(() => {});
+    }, [room]);
 
     return (
         <div className="waiting-room">
@@ -47,6 +55,7 @@ const WaitingRoom = ({ room, players, myName, onReady, onLeave }: WaitingRoomPro
                 ))}
             </div>
             <div className="waiting-actions">
+                <button className="btn" onClick={handleCopyInvite}>{copied ? 'COPIED!' : 'COPY INVITE LINK'}</button>
                 <button className="btn" onClick={onLeave}>LEAVE</button>
                 <button className="btn btn-primary" onClick={handleReady}>
                     {iAmReady ? 'UNREADY' : 'READY'}

@@ -23,7 +23,7 @@ public class GameService {
     private final RoomLockManager lockManager = new RoomLockManager();
     private final Random random = new Random();
 
-    public record LeaveOutcome(List<User> users, boolean aborted, String nextPlayer) {}
+    public record LeaveOutcome(List<User> users, boolean aborted, String nextPlayer, String reason) {}
 
     public record JoinResult(List<User> users, String name, String error) {}
 
@@ -39,6 +39,13 @@ public class GameService {
                     .orElse(null);
             if (existing != null) {
                 return new JoinResult(List.copyOf(users), existing.getName(), null);
+            }
+            String phase = gamePhase.get(room);
+            if ("SETUP".equals(phase) || "PLAYING".equals(phase)) {
+                return new JoinResult(null, null, "Game already in progress");
+            }
+            if ("FINISHED".equals(phase)) {
+                return new JoinResult(null, null, "Game finished");
             }
             if (users.stream().anyMatch(u -> u.getName().equals(name))) {
                 return new JoinResult(null, null, "Name already taken — pick a different one");
@@ -76,6 +83,7 @@ public class GameService {
             if (users == null || users.size() < 2) return null;
             if (!users.stream().allMatch(User::isReady)) return null;
             users.forEach(u -> u.setReady(false));
+            gamePhase.put(room, "SETUP");
             User first = users.get(random.nextInt(users.size()));
             return first.getName();
         } finally {
@@ -111,25 +119,31 @@ public class GameService {
         lock.lock();
         try {
             List<User> users = rooms.get(room);
-            if (users == null) return new LeaveOutcome(List.of(), false, null);
+            if (users == null) return new LeaveOutcome(List.of(), false, null, null);
             users.removeIf(u -> u.getName().equals(name));
             if (users.isEmpty()) {
                 rooms.remove(room);
                 setupComplete.remove(room);
                 cleanupRoomStateInternal(room);
                 lockManager.removeLock(room);
-                return new LeaveOutcome(List.of(), false, null);
+                return new LeaveOutcome(List.of(), false, null, null);
             }
-            if ("PLAYING".equals(gamePhase.get(room))) {
+            String phase = gamePhase.get(room);
+            if ("SETUP".equals(phase)) {
+                gamePhase.remove(room);
+                setupComplete.remove(room);
+                return new LeaveOutcome(List.copyOf(users), true, null, "setup");
+            }
+            if ("PLAYING".equals(phase)) {
                 if (users.size() < 2) {
                     gamePhase.put(room, "FINISHED");
-                    return new LeaveOutcome(List.copyOf(users), true, null);
+                    return new LeaveOutcome(List.copyOf(users), true, null, "players");
                 }
                 if (name.equals(currentPlayer.get(room))) {
-                    return new LeaveOutcome(List.copyOf(users), false, advanceToNextPlayerInternal(room));
+                    return new LeaveOutcome(List.copyOf(users), false, advanceToNextPlayerInternal(room), null);
                 }
             }
-            return new LeaveOutcome(List.copyOf(users), false, null);
+            return new LeaveOutcome(List.copyOf(users), false, null, null);
         } finally {
             lock.unlock();
         }
@@ -138,10 +152,14 @@ public class GameService {
     public List<Map<String, Object>> getRoomList() {
         List<Map<String, Object>> list = new ArrayList<>();
         for (var entry : rooms.entrySet()) {
+            String phase = gamePhase.get(entry.getKey());
+            if ("SETUP".equals(phase) || "PLAYING".equals(phase) || "FINISHED".equals(phase)) {
+                continue;
+            }
             list.add(Map.of(
                     "name", entry.getKey(),
                     "playerCount", entry.getValue().size(),
-                    "maxPlayers", 8
+                    "maxPlayers", MAX_PLAYERS
             ));
         }
         return list;

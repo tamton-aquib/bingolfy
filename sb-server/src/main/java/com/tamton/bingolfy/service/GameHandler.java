@@ -255,7 +255,7 @@ public class GameHandler extends TextWebSocketHandler {
                 var outcome = gameService.removeUser(room, name);
                 try {
                     if (outcome.aborted()) {
-                        broadcastToRoom(room, "game_aborted", Map.of());
+                        broadcastToRoom(room, "game_aborted", Map.of("reason", outcome.reason()));
                     } else {
                         broadcastToRoom(room, "user_left", Map.of("user", name));
                         if (outcome.nextPlayer() != null) {

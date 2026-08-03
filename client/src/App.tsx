@@ -100,14 +100,20 @@ function App() {
             setErrorMsg(`${d.user} left the game`);
             setTimeout(() => setErrorMsg(null), 4000);
         });
-        const unsubAborted = socket.subscribe("game_aborted", () => {
-            setErrorMsg('Game ended — not enough players');
+        const unsubAborted = socket.subscribe("game_aborted", (data: unknown) => {
+            const reason = (data as { reason?: string }).reason;
+            if (reason === 'setup') {
+                setErrorMsg('Setup cancelled — waiting for players');
+                setScreen('waiting');
+            } else {
+                setErrorMsg('Game ended — not enough players');
+                setRoom('');
+                setGrid(null);
+                setPlayingUsers([]);
+                setCurrentPlayer('');
+                setScreen('lobby');
+            }
             setTimeout(() => setErrorMsg(null), 4000);
-            setRoom('');
-            setGrid(null);
-            setPlayingUsers([]);
-            setCurrentPlayer('');
-            setScreen('lobby');
         });
         const unsubError = socket.subscribe("error", (data: unknown) => {
             setErrorMsg(data as string);
@@ -141,6 +147,16 @@ function App() {
         setCurrentPlayer('');
         setScreen('waiting');
     }, [socket, userDetails.name]);
+
+    const [inviteRoom, setInviteRoom] = useState(() => new URLSearchParams(window.location.search).get('room') || '');
+
+    useEffect(() => {
+        if (inviteRoom && socket.ready && userDetails.name && screen === 'lobby') {
+            handleJoinRoom(inviteRoom);
+            setInviteRoom('');
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+    }, [inviteRoom, socket.ready, userDetails.name, screen, handleJoinRoom]);
 
     const handleLeaveRoom = useCallback(() => {
         socket.send("leave_room");
