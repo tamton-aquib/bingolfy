@@ -204,6 +204,7 @@ public class GameHandler extends TextWebSocketHandler {
 
         Set<Integer> called = gameService.getCalledNumbers(room);
         broadcastToRoom(room, "flush", called);
+        broadcastToRoom(room, "tile_called", Map.of("tiles", tiles));
 
         String next = gameService.advanceToNextPlayer(room);
         if (next != null) {

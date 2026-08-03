@@ -289,6 +289,25 @@ input:focus{border-color:var(--accent);box-shadow:inset 3px 3px 0 0 var(--accent
 .game-grid .tile.disabled{opacity:.4;cursor:not-allowed}
 .tiles-counter{font-size:.75rem;color:var(--muted);text-align:center;margin:var(--space-sm) 0 0}
 
+.called-ticker{
+  display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:var(--space-xs);
+  margin-top:var(--space-sm);
+}
+.called-ticker-label{
+  font-size:.625rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;
+  margin-right:var(--space-xs);
+}
+.called-tile{
+  min-width:1.75rem;padding:2px 6px;text-align:center;
+  font-size:.75rem;font-weight:700;font-family:var(--font-display);
+  background:var(--surface);border:2px solid var(--border);
+  opacity:.55;
+}
+.called-tile.newest{
+  opacity:1;color:var(--accent);border-color:var(--accent);
+  box-shadow:var(--shadow);
+}
+
 .bingo-progress{
   display:flex;flex-wrap:wrap;justify-content:center;gap:var(--space-xs);
   font-size:clamp(2rem,4vw,3rem);

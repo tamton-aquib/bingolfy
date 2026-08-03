@@ -48,6 +48,7 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
     const [wonUser, setWonUser] = useState<string | null>(null);
     const [bingoReady, setBingoReady] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
+    const [recentTiles, setRecentTiles] = useState<number[]>([]);
     const isMyTurn = currentPlayer === myName;
 
     useEffect(() => {
@@ -84,6 +85,14 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
             setBingoReady(false);
             setWonUser(null);
             setNotice(null);
+            setRecentTiles([]);
+        });
+
+        const unsubTileCalled = socket.subscribe("tile_called", (data: unknown) => {
+            const tiles = (data as { tiles: number[] }).tiles;
+            if (tiles?.length) {
+                setRecentTiles(prev => [...prev, ...tiles].slice(-8));
+            }
         });
 
         const unsubTurnTimeout = socket.subscribe("turn_timeout", (data: unknown) => {
@@ -94,7 +103,7 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
 
         return () => {
             unsubFlush(); unsubGameOver(); unsubWinRejected();
-            unsubGameState(); unsubGameReset(); unsubTurnTimeout();
+            unsubGameState(); unsubGameReset(); unsubTileCalled(); unsubTurnTimeout();
         };
     }, []);
 
@@ -155,6 +164,14 @@ const Game = ({ room, grid, myName, playingUsers, currentPlayer, socket, onGoHom
                         })}
                     </div>
                     <p className="tiles-counter">{marked.size}/25 called</p>
+                    {recentTiles.length > 0 && (
+                        <div className="called-ticker" aria-label="Recently called numbers">
+                            <span className="called-ticker-label">LAST CALLED</span>
+                            {recentTiles.map((n, i) => (
+                                <span key={`${n}-${i}`} className={`called-tile${i === recentTiles.length - 1 ? ' newest' : ''}`}>{n}</span>
+                            ))}
+                        </div>
+                    )}
                     <BingoProgress lines={lines} />
                     <div className="game-actions">
                         <button
