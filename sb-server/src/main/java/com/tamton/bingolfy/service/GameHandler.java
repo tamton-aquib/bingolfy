@@ -145,20 +145,20 @@ public class GameHandler extends TextWebSocketHandler {
             handleLeaveRoom(session);
         }
 
-        var users = gameService.joinRoom(room, name, uid);
-        if (users == null) {
-            sendToSession(session, "error", "Room is full");
+        var result = gameService.joinRoom(room, name, uid);
+        if (result.error() != null) {
+            sendToSession(session, "error", result.error());
             return;
         }
 
         roomSessions.computeIfAbsent(room, k -> ConcurrentHashMap.newKeySet()).add(session);
         sessionRooms.put(session.getId(), room);
-        sessionUsers.put(session.getId(), name);
+        sessionUsers.put(session.getId(), result.name());
         if (uid != null && !uid.isEmpty()) {
             sessionUid.put(session.getId(), uid);
         }
 
-        broadcastToRoom(room, "user_joined", users);
+        broadcastToRoom(room, "user_joined", result.users());
     }
 
     private void handleUserReady(WebSocketSession session) throws Exception {

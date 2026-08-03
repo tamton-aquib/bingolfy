@@ -12,6 +12,15 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { useWebSocket } from './hooks/useWebSocket';
 import { auth } from "./firebase";
 
+function getAnonUid() {
+    let uid = localStorage.getItem('bingolfy-anon-uid');
+    if (!uid) {
+        uid = crypto.randomUUID();
+        localStorage.setItem('bingolfy-anon-uid', uid);
+    }
+    return uid;
+}
+
 interface Player {
     name: string;
     ready: boolean;
@@ -50,7 +59,7 @@ function App() {
                 name: user?.displayName || anonUser || '',
                 email: user?.email || '',
                 photo: user?.photoURL || '',
-                uid: user?.uid || '',
+                uid: user?.uid || getAnonUid(),
             });
             if (screen === 'login') setScreen('lobby');
         }

@@ -25,20 +25,29 @@ public class GameService {
 
     public record LeaveOutcome(List<User> users, boolean aborted, String nextPlayer) {}
 
-    public List<User> joinRoom(String room, String name, String uid) {
+    public record JoinResult(List<User> users, String name, String error) {}
+
+    public JoinResult joinRoom(String room, String name, String uid) {
         ReentrantLock lock = lockManager.getLock(room);
         lock.lock();
         try {
             List<User> users = rooms.computeIfAbsent(room, k -> new ArrayList<>());
+            boolean hasUid = uid != null && !uid.isEmpty();
             User existing = users.stream()
-                    .filter(u -> u.getName().equals(name))
+                    .filter(u -> hasUid ? uid.equals(u.getUid()) : u.getName().equals(name))
                     .findFirst()
                     .orElse(null);
-            if (existing == null) {
-                if (users.size() >= MAX_PLAYERS) return null;
-                users.add(new User(name, uid));
+            if (existing != null) {
+                return new JoinResult(List.copyOf(users), existing.getName(), null);
             }
-            return List.copyOf(users);
+            if (users.stream().anyMatch(u -> u.getName().equals(name))) {
+                return new JoinResult(null, null, "Name already taken — pick a different one");
+            }
+            if (users.size() >= MAX_PLAYERS) {
+                return new JoinResult(null, null, "Room is full");
+            }
+            users.add(new User(name, uid));
+            return new JoinResult(List.copyOf(users), name, null);
         } finally {
             lock.unlock();
         }
