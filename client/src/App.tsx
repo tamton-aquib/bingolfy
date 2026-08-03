@@ -242,12 +242,12 @@ function App() {
                 <div className="screen-container">
                 {screen === 'login' && <Login setAnonUser={setAnonUser} />}
 
-                {screen === 'lobby' && (
+                {screen === 'lobby' && isSignedIn && (
                     <Lobby onJoinRoom={handleJoinRoom} getApiUrl={apiUrl} leaderboardApiUrl={leaderboardApiUrl} onViewLeaderboard={() => setScreen('leaderboard')} />
                 )}
 
                 {screen === 'leaderboard' && (
-                    <Leaderboard apiUrl={leaderboardApiUrl} onBack={() => setScreen('lobby')} />
+                    <Leaderboard apiUrl={leaderboardApiUrl} onBack={() => setScreen(isSignedIn ? 'lobby' : 'login')} />
                 )}
 
                 {screen === 'waiting' && (
