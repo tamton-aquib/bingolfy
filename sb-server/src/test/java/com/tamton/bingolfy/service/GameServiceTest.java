@@ -149,7 +149,21 @@ class GameServiceTest {
 
         assertEquals(12, svc.tryClaimWin("r", "a"));
         assertEquals("FINISHED", svc.getGamePhase("r"));
+        assertEquals("a", svc.getWinner("r"));
         assertEquals(-1, svc.tryClaimWin("r", "b"));
+    }
+
+    @Test
+    void returnsStoredGrid() {
+        GameService svc = newRoom("r", "a", "b");
+        startGame(svc, "r");
+
+        assertEquals(5, svc.getGrid("r", "a").length);
+        assertEquals(5, svc.getGrid("r", "a")[0].length);
+        assertNull(svc.getGrid("r", "unknown"));
+
+        svc.resetGameForRoom("r");
+        assertEquals(1, svc.getGrid("r", "a")[0][0]);
     }
 
     @Test

@@ -1,3 +1,11 @@
+# Plan & Audit Log
+
+> **STATUS: All phases implemented.** Phases 1-4, the post-audit fixes, the
+> leaderboard system, and the 2026-08 review batch (play again, server-side turn
+> rotation, AFK timeout, disconnect handling, uid-based identity, room gating,
+> invite links, called-tile ticker, reload recovery, tests) are all shipped.
+> Protocol notes below that contradict `AGENTS.md` are historical.
+
 # Phase 1 — Security & Game Integrity
 
 ## Scope
@@ -282,9 +290,9 @@ Excludes `node_modules`, `build`, `.git`, `.env`, `*.md`, IDE files, Docker file
 
 ## High
 
-3. **Atomic compound ops in GameHandler** — `handleTileClicked` uses `isPlayersTurn()`, `handleUserWon` uses `tryClaimWin()`, `handleSetNextPlayer` uses `advanceTurn()`. All under per-room locks.
+3. **Atomic compound ops in GameHandler** — `handleTileClicked` uses `isPlayersTurn()`, `handleUserWon` uses `tryClaimWin()`. All under per-room locks. (`set_next_player` was later removed entirely — the server advances the turn after every valid tile and on AFK timeout.)
 4. **Client-side error handler** — `App.tsx` subscribes to `"error"` messages, shows banner for 4s
-5. **Play Again resets server** — `handlePlayAgain` sends `reset_game` to server. Server resets `calledNumbers`, `gamePhase`, `currentPlayer`. Broadcasts `game_reset` to room.
+5. **Play Again resets server** — `reset_game` wired end-to-end: WinOverlay button → `Game.tsx` → server, keeps grids, picks a new random first player
 6. **`game_reset` subscriber** — Game.tsx clears local state on `game_reset`
 
 ## Medium
