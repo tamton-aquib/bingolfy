@@ -13,8 +13,8 @@ public class DataDirectoryConfig {
     public static BeanFactoryPostProcessor dataDirectoryCreator() {
         return beanFactory -> {
             File dir = new File("./data");
-            if (!dir.exists()) {
-                dir.mkdirs();
+            if (!dir.exists() && !dir.mkdirs()) {
+                throw new IllegalStateException("Could not create data directory: " + dir.getAbsolutePath());
             }
         };
     }
